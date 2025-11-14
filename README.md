@@ -69,47 +69,25 @@ Journiv is a self-hosted private journal. It features comprehensive journaling c
 ### Installation
 
 #### Docker Compose (Recommended)
+Create a `docker-compose.yml` file with the following content or `wget`/`curl` [docker-compose.yml](https://raw.githubusercontent.com/journiv/journiv-app/refs/heads/main/docker-compose.yml)
 ```yaml
 services:
-  redis:
-    image: redis:7
-    container_name: journiv-redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   journiv:
     image: swalabtech/journiv-app:latest
     container_name: journiv
     ports:
-      - "${APP_PORT:-8000}:8000"
+      # if you want to expose on a different port, change the left hand side of colon to the port
+      # you want to expose on do not change the 8000 on the right hand side
+      - "8000:8000"
     environment:
-      # Required
-      - SECRET_KEY=${SECRET_KEY}
-      - DOMAIN_NAME=${DOMAIN_NAME:-}
-
-      # Basic config
-      - ENVIRONMENT=production
-      - DEBUG=false
-
-      # Optional: disable new signups
-      - DISABLE_SIGNUP=${DISABLE_SIGNUP:-false}
-
+      - SECRET_KEY=your-secret-key-here # (REQUIRED) Replace with a strong secret key
+      - DOMAIN_NAME=192.168.1.1 # (REQUIRED) Your server IP or domain
     volumes:
       - journiv_data:/data
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   journiv_data:
-  redis_data:
 ```
 
 **Generate a secure SECRET_KEY:**
@@ -118,10 +96,9 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 # OR
 openssl rand -base64 32
 ```
+**Specify required parameters:**
 
-**Speicfy required environment variable:**
-
-You must specify `DOMAIN_NAME` and `SECRET_KEY` either directly in compose file above or in a `.env` file (recommended).
+You must specify the `DOMAIN_NAME` and `SECRET_KEY` in the docker-compose file above or through `.env` file.
 ```bash
 DOMAIN_NAME=
 SECRET_KEY=
@@ -133,6 +110,18 @@ SECRET_KEY=
 docker compose -f docker-compose.yml up -d
 ```
 ---
+
+#### Docker Run (If you are not using Docker Compose)
+```bash
+docker run -d \
+  --name journiv \
+  -p 8000:8000 \
+  -e SECRET_KEY=your-secret-key-here \
+  -e DOMAIN_NAME=192.168.1.1 \
+  -v journiv_data:/data \
+  --restart unless-stopped \
+  swalabtech/journiv-app:latest
+```
 
 #### Environment Variables
 
