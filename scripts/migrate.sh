@@ -15,7 +15,7 @@ fi
 if [[ "${ENVIRONMENT:-development}" == "production" ]]; then
     COMPOSE_FILE="docker-compose.yml"
 else
-    COMPOSE_FILE="docker-compose.dev.yml"
+    COMPOSE_FILE="docker-compose.dev.sqlite.yml"
 fi
 
 # Check if compose file exists

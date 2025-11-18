@@ -49,11 +49,11 @@ Before you begin, ensure you have:
 
    **Option A: Docker (Recommended)**
    ```bash
-   # Start with SQLite
-   docker-compose -f docker-compose.dev.yml up
+   # Start with SQLite (recommended for quick development)
+   docker compose -f docker-compose.dev.sqlite.yml up -d
 
-   # Or with PostgreSQL
-   docker-compose -f docker-compose.dev.yml --profile postgres up
+   # Or with PostgreSQL (for testing PostgreSQL-specific features)
+   docker compose -f docker-compose.dev.postgres.yml up -d
    ```
 
    **Option B: Local Development**
@@ -126,7 +126,7 @@ LOG_DIR=./logs
 **PostgreSQL (Optional)**
 - For multi-user production-like testing
 - Requires PostgreSQL service running
-- Use the postgres profile with docker-compose.dev.yml
+- Use `docker-compose.dev.postgres.yml` for PostgreSQL development
 
 ## Project Structure
 
@@ -546,10 +546,10 @@ pytest -x
 **Using Docker:**
 ```bash
 # Run tests in container
-docker-compose -f docker-compose.dev.yml run app pytest
+docker compose -f docker-compose.dev.sqlite.yml run app pytest
 
 # With coverage
-docker-compose -f docker-compose.dev.yml run app pytest --cov=app
+docker compose -f docker-compose.dev.sqlite.yml run app pytest --cov=app
 ```
 
 ### Writing Tests

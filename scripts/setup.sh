@@ -20,11 +20,11 @@ fi
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
     echo "📝 Creating .env file from template..."
-    if [ -f env.example ]; then
-        cp env.example .env
+    if [ -f .env.template ]; then
+        cp .env.template .env
         echo "✅ .env file created. Please edit it with your configuration."
     else
-        echo "❌ env.example file not found. Cannot create .env file."
+        echo "❌ .env.template file not found. Cannot create .env file."
         exit 1
     fi
 else
@@ -35,8 +35,8 @@ fi
 echo "📁 Creating required directories..."
 mkdir -p media logs data
 
-# Determine compose file (default to development)
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.dev.yml}"
+# Determine compose file (default to SQLite development)
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.dev.sqlite.yml}"
 
 # Check if compose file exists
 if [[ ! -f "$COMPOSE_FILE" ]]; then

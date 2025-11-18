@@ -100,9 +100,17 @@ fi
 
 # Determine compose file
 if [[ "$ENVIRONMENT" == "production" ]]; then
-    COMPOSE_FILE="docker-compose.yml"
+    if [[ "$DATABASE" == "postgresql" ]]; then
+        COMPOSE_FILE="docker-compose.prod.postgres.yml"
+    else
+        COMPOSE_FILE="docker-compose.prod.sqlite.yml"
+    fi
 else
-    COMPOSE_FILE="docker-compose.dev.yml"
+    if [[ "$DATABASE" == "postgresql" ]]; then
+        COMPOSE_FILE="docker-compose.dev.postgres.yml"
+    else
+        COMPOSE_FILE="docker-compose.dev.sqlite.yml"
+    fi
 fi
 
 # Check if compose file exists
@@ -126,14 +134,9 @@ if [[ -n "$BUILD_FLAG" ]]; then
     docker-compose -f "$COMPOSE_FILE" build --no-cache
 fi
 
-# Start services based on database type
-if [[ "$DATABASE" == "postgresql" ]]; then
-    print_status "Starting services with PostgreSQL..."
-    docker-compose -f "$COMPOSE_FILE" --profile postgres up $DETACH_FLAG
-else
-    print_status "Starting services with SQLite (default)..."
-    docker-compose -f "$COMPOSE_FILE" --profile sqlite up $DETACH_FLAG
-fi
+
+print_status "Starting services..."
+docker-compose -f "$COMPOSE_FILE" up $DETACH_FLAG
 
 if [[ -n "$DETACH_FLAG" ]]; then
     print_success "Services started in detached mode"
