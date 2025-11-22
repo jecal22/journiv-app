@@ -110,7 +110,7 @@ jobs:
             echo "ENABLE_CORS=false"
             echo "DISABLE_SIGNUP=false"
             echo "RATE_LIMITING_ENABLED=false"
-          } > .env.test
+          } > .env
 
           if [ "${{ matrix.database }}" = "postgres" ]; then
             {
@@ -119,9 +119,9 @@ jobs:
               echo "POSTGRES_DB=journiv_upgrade_test"
               echo "POSTGRES_HOST=postgres"
               echo "POSTGRES_PORT=5432"
-            } >> .env.test
+            } >> .env
           else
-            echo "DATABASE_URL=sqlite:////data/journiv.db" >> .env.test
+            echo "DATABASE_URL=sqlite:////data/journiv.db" >> .env
           fi
 
       # -------------------------------------------------------
@@ -136,7 +136,7 @@ jobs:
             -f docker-compose.prod.${{ matrix.database }}.yml \
             -f docker-compose.override.ci.yml \
             -f docker-compose.override.old-version.yml \
-            --env-file .env.test up -d
+            --env-file .env up -d
 
           APP_VERSION=old docker compose \
             -f docker-compose.prod.${{ matrix.database }}.yml \
@@ -221,7 +221,7 @@ jobs:
           APP_VERSION=${{ env.NEW_VERSION }} docker compose \
             -f docker-compose.prod.${{ matrix.database }}.yml \
             -f docker-compose.override.ci.yml \
-            --env-file .env.test up -d
+            --env-file .env up -d
 
           APP_VERSION=${{ env.NEW_VERSION }} docker compose \
             -f docker-compose.prod.${{ matrix.database }}.yml \

@@ -53,7 +53,7 @@ jobs:
       - name: Create test environment file
         run: |
           echo "📝 Creating test environment configuration for ${{ matrix.database }}..."
-          cat > .env.test <<EOF
+          cat > .env <<EOF
           # Test configuration for CI
           SECRET_KEY=test-secret-key-for-ci-only-not-for-production
           DOMAIN_NAME=localhost
@@ -67,7 +67,7 @@ jobs:
 
           # Add database-specific configuration
           if [ "${{ matrix.database }}" = "postgres" ]; then
-            cat >> .env.test <<EOF
+            cat >> .env <<EOF
           POSTGRES_USER=journiv
           POSTGRES_PASSWORD=test-password-ci-only
           POSTGRES_DB=journiv_test
@@ -75,7 +75,7 @@ jobs:
           POSTGRES_PORT=5432
           EOF
           else
-            echo "DATABASE_URL=sqlite:////data/journiv.db" >> .env.test
+            echo "DATABASE_URL=sqlite:////data/journiv.db" >> .env
           fi
 
           echo "✅ Environment file created for ${{ matrix.database }}"
@@ -103,7 +103,7 @@ jobs:
           APP_VERSION=latest docker compose \
             -f docker-compose.prod.${{ matrix.database }}.yml \
             -f docker-compose.override.ci.yml \
-            --env-file .env.test up -d
+            --env-file .env up -d
 
           echo "📋 Checking running containers..."
           export COMPOSE_PROJECT_NAME=journiv-${{ matrix.database }}
