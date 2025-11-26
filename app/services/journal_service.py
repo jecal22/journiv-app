@@ -106,23 +106,34 @@ class JournalService:
         log_info(f"Journal updated for {user_id}: {journal.id}")
         return journal
 
-    def delete_journal(self, journal_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    async def delete_journal(self, journal_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Hard delete a journal and all related entries and media."""
         journal = self._get_owned_journal(journal_id, user_id)
 
         # Hard delete all related entries and their media first
         from app.models.entry import Entry, EntryMedia
+        from app.services.media_service import MediaService
+
         entries = self.session.exec(
             select(Entry).where(Entry.journal_id == journal_id)
         ).all()
 
+        media_service = MediaService()
+        media_files_to_delete = []
+
         for entry in entries:
-            # Hard delete all related entry media
+            # Collect all entry media records with their file paths before deletion
             entry_media_list = self.session.exec(
                 select(EntryMedia).where(EntryMedia.entry_id == entry.id)
             ).all()
 
             for media in entry_media_list:
+                # Collect file paths for deletion (file_path is relative to media_root)
+                if media.file_path:
+                    full_path = (media_service.media_root / media.file_path).resolve()
+                    if full_path.exists() and str(full_path).startswith(str(media_service.media_root.resolve())):
+                        media_files_to_delete.append(str(full_path))
+
                 self.session.delete(media)
 
             # Hard delete the entry
@@ -147,6 +158,13 @@ class JournalService:
         except Exception as exc:
             # Log error but don't fail the deletion
             log_warning(f"Failed to update writing streak stats after journal deletion: {exc}")
+
+        # Delete physical media files from disk
+        for file_path in media_files_to_delete:
+            try:
+                await media_service.delete_media_file(file_path)
+            except Exception as exc:
+                log_warning(f"Failed to delete media file {file_path} after journal deletion: {exc}")
 
         log_info(f"Journal and related entries/media hard-deleted for {user_id}: {journal_id}")
         return True

@@ -290,7 +290,7 @@ async def delete_entry(
     """
     entry_service = EntryService(session)
     try:
-        entry_service.delete_entry(entry_id, current_user.id)
+        await entry_service.delete_entry(entry_id, current_user.id)
         log_user_action(current_user.email, "Deleted entry", request_id=None)
     except EntryNotFoundError:
         raise HTTPException(status_code=404, detail="Entry not found")
