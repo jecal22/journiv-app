@@ -303,14 +303,26 @@ class EntryService:
         log_info(f"Entry updated for user {user_id}: {entry.id}")
         return entry
 
-    def delete_entry(self, entry_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    async def delete_entry(self, entry_id: uuid.UUID, user_id: uuid.UUID) -> bool:
         """Hard delete an entry and its related records."""
         entry = self._get_owned_entry(entry_id, user_id)
 
         # Hard delete related EntryMedia records
+        from app.services.media_service import MediaService
+
         media_statement = select(EntryMedia).where(EntryMedia.entry_id == entry_id)
         media_records = self.session.exec(media_statement).all()
+
+        media_service = MediaService()
+        media_files_to_delete = []
+
         for media in media_records:
+            # Collect file paths for deletion (file_path is relative to media_root)
+            if media.file_path:
+                full_path = (media_service.media_root / media.file_path).resolve()
+                if full_path.exists() and str(full_path).startswith(str(media_service.media_root.resolve())):
+                    media_files_to_delete.append(str(full_path))
+
             self.session.delete(media)
 
         # Hard delete related EntryTagLink records
@@ -351,6 +363,13 @@ class EntryService:
         except Exception as exc:
             # Log error but don't fail the deletion
             log_warning(f"Failed to update writing streak stats after entry deletion: {exc}")
+
+        # Delete physical media files from disk
+        for file_path in media_files_to_delete:
+            try:
+                await media_service.delete_media_file(file_path)
+            except Exception as exc:
+                log_warning(f"Failed to delete media file {file_path} after entry deletion: {exc}")
 
         log_info(f"Entry hard-deleted for user {user_id}: {entry_id}")
         return True
@@ -458,7 +477,7 @@ class EntryService:
         return list(self.session.exec(statement))
 
     def delete_entry_media(self, media_id: uuid.UUID, user_id: uuid.UUID) -> bool:
-        """Soft delete an entry media file.
+        """Hard delete an entry media file.
 
         Args:
             media_id: Media ID to delete
