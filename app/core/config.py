@@ -34,7 +34,7 @@ class Settings(BaseSettings):
 
     # Application
     app_name: str = "Journiv Service"
-    app_version: str = "0.1.0-beta.8"
+    app_version: str = "0.1.0-beta.9"
     debug: bool = False
     environment: str = "development"
     domain_name: str = ""

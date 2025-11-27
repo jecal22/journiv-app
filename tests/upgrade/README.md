@@ -15,7 +15,7 @@ The upgrade test suite ensures that:
 The upgrade testing workflow consists of three phases:
 
 ### Phase 1: Seed Old Version
-1. Start the OLD version (e.g., `0.1.0-beta.6` from Docker Hub)
+1. Start the OLD version (e.g., `0.1.0-beta.8` from Docker Hub)
 2. Create realistic test data via API calls
 3. Verify data was created successfully
 
@@ -121,7 +121,7 @@ Tests run against both databases:
 
 ### Version Configuration
 ```yaml
-OLD_VERSION: "0.1.0-beta.6"  # Previous stable release
+OLD_VERSION: "0.1.0-beta.8"  # Previous stable release
 NEW_VERSION: "ci-latest"      # Built from current code
 ```
 
