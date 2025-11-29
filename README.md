@@ -7,19 +7,13 @@
 
 
 Journiv is a self-hosted private journal. It features comprehensive journaling capabilities including mood tracking, prompt-based journaling, media uploads, analytics, and advanced search with a clean and minimal UI.
-<p align="center">
+<!-- <p align="center">
   <a href="https://journiv.substack.com/" target="_blank">
     <img src="https://img.shields.io/badge/📬%20Subscribe%20to%20Journiv%20Latest%20Updates%20on%20Substack-1E1E1E?style=for-the-badge&logo=substack&logoColor=FF6719&labelColor=1E1E1E&color=FF6719" alt="Subscribe to Journiv Latest Updates on Substack">
   </a>
-</p>
+</p> -->
 
----
 
-<p align="center">
-  <img src="https://img.shields.io/badge/status-beta-orange" alt="Status: Beta">
-  <img src="https://img.shields.io/badge/active%20development-yes-brightgreen" alt="Active Development">
-  <img src="https://img.shields.io/badge/backups-recommended-critical" alt="Backups Recommended">
-</p>
 
 <p align="center">
   <a href="https://journiv.com" target="_blank">
@@ -38,9 +32,13 @@ Journiv is a self-hosted private journal. It features comprehensive journaling c
     <img src="https://img.shields.io/badge/Join%20Reddit%20Community-FF4500?style=for-the-badge&logo=reddit&logoColor=white" alt="Join Journiv Reddit">
   </a>
 </p>
+<p align="center">
+  <img src="https://img.shields.io/badge/status-beta-orange" alt="Status: Beta">
+  <img src="https://img.shields.io/badge/active%20development-yes-brightgreen" alt="Active Development">
+  <img src="https://img.shields.io/badge/backups-recommended-critical" alt="Backups Recommended">
+</p>
 
-
-<div align="center">
+<!-- <div align="center">
   <video
     src="https://github.com/user-attachments/assets/e34f800d-b2d9-4fca-b3ee-c71e850ed1e9"
     controls
@@ -48,70 +46,26 @@ Journiv is a self-hosted private journal. It features comprehensive journaling c
     playsinline
     preload="metadata">
   </video>
-</div>
+</div> -->
 <div align="center">
   <a href="https://www.youtube.com/watch?v=nKoUh7VP-eE" target="_blank">
-    <img src="https://github.com/user-attachments/assets/9ff6c98f-88d5-4780-982a-d485f869d68c" height="400">
+    <img src="https://github.com/user-attachments/assets/d5c9e87d-83e1-4e99-8491-d44ea61fbecc" height="400">
   </a>
-  &nbsp;&nbsp;&nbsp;
+  <!-- &nbsp;&nbsp;&nbsp;
   <a href="https://www.youtube.com/shorts/-cRwaPKltvQ" target="_blank">
     <img src="https://github.com/user-attachments/assets/d236fdc3-a6da-496b-a51d-39ca77d9be44" height="400">
-  </a>
+  </a> -->
 </div>
 
 <p align="center">
-  👉 <a href="https://www.youtube.com/watch?v=nKoUh7VP-eE" target="_blank">Watch Web Demo</a> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://www.youtube.com/shorts/-cRwaPKltvQ" target="_blank">Watch Mobile Demo</a>
+  👉 <a href="https://www.youtube.com/@JournivApp" target="_blank">Watch Demo Videos</a> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 </p>
 
-## 🏁 Quick Start
+## Quick Start
+Give Journiv a quick try with one docker command.
 
-### Installation
+### Docker Run 
 
-#### Docker Compose (Recommended)
-Create a `docker-compose.yml` file with the following content or `wget`/`curl` [docker-compose.yml](https://raw.githubusercontent.com/journiv/journiv-app/refs/heads/main/docker-compose.yml)
-```yaml
-services:
-  journiv:
-    image: swalabtech/journiv-app:latest
-    container_name: journiv
-    ports:
-      # if you want to expose on a different port, change the left hand side of colon to the port
-      # you want to expose on do not change the 8000 on the right hand side
-      - "8000:8000"
-    environment:
-      - SECRET_KEY=your-secret-key-here # (REQUIRED) Replace with a strong secret key
-      - DOMAIN_NAME=192.168.1.1 # (REQUIRED) Your server IP or domain
-    volumes:
-      - journiv_data:/data
-    restart: unless-stopped
-
-volumes:
-  journiv_data:
-```
-
-**Generate a secure SECRET_KEY:**
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-# OR
-openssl rand -base64 32
-```
-**Specify required parameters:**
-
-You must specify the `DOMAIN_NAME` and `SECRET_KEY` in the docker-compose file above or through `.env` file.
-```bash
-DOMAIN_NAME=
-SECRET_KEY=
-```
-
-
-**Run the container:**
-```
-docker compose -f docker-compose.yml up -d
-```
----
-
-#### Docker Run (If you are not using Docker Compose)
 ```bash
 docker run -d \
   --name journiv \
@@ -123,20 +77,14 @@ docker run -d \
   swalabtech/journiv-app:latest
 ```
 
-#### Environment Variables
-
-All configurations use environment variables for customization. The minimal required configuration:
-
-```bash
-SECRET_KEY=your-secret-key-here
-DOMAIN_NAME=your-server-ip-or-domain
-```
-
 **Access Journiv:** Open `http://192.168.1.1:8000` (replace with your server IP) in your browser to start journaling!
+
+**For complete installation guide see [installation guide](https://journiv.com/docs/installation).**
 
 ## Documentation
 
 Read the [docs](https://journiv.com/docs) to learn more about Journiv and configuring it.
+
 
 
 ## Contributing
