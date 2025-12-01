@@ -588,8 +588,9 @@ class Settings(BaseSettings):
 
         # If redis_url is set, use it as default for Celery
         if redis_url and not v:
+            field_display = field_name.upper() if field_name else "CELERY_URL"
             logger.info(
-                f"{field_name.upper()} not set. Defaulting to REDIS_URL: {redis_url}"
+                f"{field_display} not set. Defaulting to REDIS_URL: {redis_url}"
             )
             return redis_url
 
