@@ -29,6 +29,7 @@ def register_oidc_provider():
             client_kwargs = {"scope": settings.oidc_scopes}
 
             # Disable SSL verification for local development with self-signed certificates
+            # SECURITY WARNING: Never disable SSL verification in production!
             if settings.oidc_disable_ssl_verify:
                 if settings.environment == "production":
                     raise ValueError(
@@ -188,13 +189,15 @@ async def oidc_callback(
             ExternalIdentity.subject == subject
         )
         external_identity = session.exec(statement).first()
-        
-        # Check if a local user (created by Admin UI) exists with this email
+
+        # FIX: Check if a local user (admin-created) exists with the same email.
+        # This allows existing users to log in/link SSO even if signup is disabled,
+        # ensuring the admin's user management action is respected.
         local_user_by_email = None
         if email:
             local_user_by_email = user_service.get_user_by_email(email)
 
-        # Only block login if NEITHER an OIDC identity NOR a local user exists.
+        # Block login ONLY if neither an external identity nor a local user exists.
         if not external_identity and not local_user_by_email:
             log_warning(
                 "OIDC login rejected because signup is disabled",
@@ -207,6 +210,7 @@ async def oidc_callback(
     try:
         # First user always gets provisioned as admin (bootstrap override)
         # Otherwise, respect oidc_auto_provision setting
+        # This function handles linking the ExternalIdentity to an existing local user if found.
         user = user_service.get_or_create_user_from_oidc(
             issuer=issuer,
             subject=subject,
