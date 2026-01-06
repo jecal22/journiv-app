@@ -31,6 +31,38 @@ from app.plus.exceptions import (
 )
 
 
+def format_wait_time(seconds: int) -> str:
+    """
+    Format wait time in a user-friendly way.
+
+    Args:
+        seconds: Number of seconds to wait
+
+    Returns:
+        Human-readable string like "1 day(s) and 2 hour(s)" or "3 hour(s) and 15 minute(s)"
+    """
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+
+    if hours == 0 and minutes == 0:
+        minutes = 1
+
+    if hours >= 24:
+        days = hours // 24
+        remaining_hours = hours % 24
+        if remaining_hours > 0:
+            return f"{days} day(s) and {remaining_hours} hour(s)"
+        else:
+            return f"{days} day(s)"
+    elif hours > 0:
+        if minutes > 0:
+            return f"{hours} hour(s) and {minutes} minute(s)"
+        else:
+            return f"{hours} hour(s)"
+    else:
+        return f"{minutes} minute(s)"
+
+
 class VersionChecker:
     """
     Service for checking Journiv version updates from Plus server.
@@ -249,7 +281,7 @@ class VersionChecker:
                 "rate_limited": True,
                 "retry_after_seconds": e.retry_after,
                 "status_code": 429,
-                "error_message": f"Rate limited. Please wait {e.retry_after // 60} minutes."
+                "error_message": f"Rate limited. Please wait {format_wait_time(e.retry_after)}."
             }
 
         except PlusRegistrationError as e:

@@ -61,7 +61,7 @@ class LicenseInfoResponse(BaseModel):
     """
 
     is_active: bool = Field(..., description="Whether license is currently active")
-    tier: str = Field(..., description="License tier (none, supporter, believer)")
+    tier: Optional[str] = Field(None, description="License tier (none, supporter, believer)")
     license_type: str = Field(..., description="License type: 'subscription' or 'lifetime'")
     subscription_expires_at: Optional[str] = Field(None, description="Subscription expiration timestamp (ISO format). NULL for lifetime licenses.")
     install_id: str = Field(..., description="Hardware-bound installation identifier for license binding")

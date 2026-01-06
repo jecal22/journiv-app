@@ -12,7 +12,7 @@ from app.core.database import get_session
 from app.core.logging_config import log_info, log_warning
 from app.models.user import User
 from app.schemas.version import VersionInfoResponse, ForceVersionCheckResponse
-from app.services.version_checker import VersionChecker
+from app.services.version_checker import VersionChecker, format_wait_time
 
 router = APIRouter(prefix="/instance/version", tags=["version"])
 
@@ -87,11 +87,10 @@ async def force_version_check(
     # Handle rate limiting
     if result.get("rate_limited"):
         retry_after = result.get("retry_after_seconds", 3600)
-        minutes = retry_after // 60
 
         return ForceVersionCheckResponse(
             success=False,
-            message=f"Rate limited. Please wait {minutes} minute(s) before checking again.",
+            message=f"Rate limited. Please wait {format_wait_time(retry_after)} before checking again.",
             version_info=VersionInfoResponse(**info) if info.get("latest_version") else None,
             retry_after_seconds=retry_after
         )
