@@ -157,6 +157,8 @@ scripts/*.sh
 docs/_build/
 docs/build/
 site/
+# Kubernetes docs configs
+kubernetes/
 
 # AI notes / misc
 CLAUDE.md
