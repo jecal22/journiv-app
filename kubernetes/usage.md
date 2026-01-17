@@ -28,15 +28,12 @@ managed-nfs-storage    fuseim.pri/ifs          Delete          Immediate        
 
 In the `env` block of the Deployment object, we set the env vars Journiv expects.
 
-In the file we see:
-```yaml
     - name: SECRET_KEY
-        value: "mylongsecretkeyyoushouldchange"
+      value: "mylongsecretkeyyoushouldchange"
     - name: DOMAIN_NAME
-        value: "journiv.example.com"
+      value: "journiv.example.com"
     - name: DOMAIN_SCHEME
-        value: "https"
-```
+      value: "https"
 
 Change the Secret Key to something sufficiently long.  In this example, Journiv expects to be served on "https://journiv.example.com".  This should match your ingress
 
