@@ -170,9 +170,9 @@ class EntryMediaResponse(EntryMediaBase, TimestampMixin):
         """
         # Link-only media (Immich, etc.)
         if self.external_provider and self.external_asset_id and not self.file_path:
-             # Return proxy URL
-             # Note: external_provider is likely a string here due to Pydantic serialization
-             return f"/api/v1/integrations/{self.external_provider}/proxy/{self.external_asset_id}/original"
+            # Return proxy URL
+            # Note: external_provider is likely a string here due to Pydantic serialization
+            return f"/api/v1/integrations/{self.external_provider}/proxy/{self.external_asset_id}/original"
 
         # Local media (or copy-mode)
         return f"/api/v1/media/{self.id}"
