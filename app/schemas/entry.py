@@ -137,6 +137,11 @@ class EntryMediaResponse(EntryMediaBase, TimestampMixin):
             data['media_type'] = data['media_type'].value
         if 'upload_status' in data and hasattr(data['upload_status'], 'value'):
             data['upload_status'] = data['upload_status'].value
+
+        # Explicitly ensure url is included
+        if 'url' not in data:
+            data['url'] = self.url
+
         return data
 
     @model_validator(mode='after')
@@ -156,3 +161,18 @@ class EntryMediaResponse(EntryMediaBase, TimestampMixin):
             raise ValueError("Media must have either a local file or an external source")
 
         return self
+
+    @computed_field
+    @property
+    def url(self) -> str:
+        """
+        Get the fully qualified or relative URL to access this media.
+        """
+        # Link-only media (Immich, etc.)
+        if self.external_provider and self.external_asset_id and not self.file_path:
+             # Return proxy URL
+             # Note: external_provider is likely a string here due to Pydantic serialization
+             return f"/api/v1/integrations/{self.external_provider}/proxy/{self.external_asset_id}/original"
+
+        # Local media (or copy-mode)
+        return f"/api/v1/media/{self.id}"
