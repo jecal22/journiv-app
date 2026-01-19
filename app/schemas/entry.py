@@ -3,17 +3,26 @@ Entry schemas.
 """
 import uuid
 from datetime import datetime, date
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List, Union
 
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.base import TimestampMixin
 
 
+class QuillOp(BaseModel):
+    insert: Union[str, Dict[str, Any]]
+    attributes: Optional[Dict[str, Any]] = None
+
+
+class QuillDelta(BaseModel):
+    ops: List[QuillOp] = Field(default_factory=list)
+
+
 class EntryBase(BaseModel):
     """Base entry schema."""
     title: Optional[str] = None
-    content: Optional[str] = None
+    content_delta: Optional[QuillDelta] = None
     entry_date: Optional[date] = None  # Allows backdating/future-dating entries
     entry_datetime_utc: Optional[datetime] = None
     entry_timezone: Optional[str] = None
@@ -37,7 +46,7 @@ class EntryCreate(EntryBase):
 class EntryUpdate(BaseModel):
     """Entry update schema."""
     title: Optional[str] = None
-    content: Optional[str] = None
+    content_delta: Optional[QuillDelta] = None
     entry_date: Optional[date] = None
     entry_datetime_utc: Optional[datetime] = None
     entry_timezone: Optional[str] = None
@@ -66,6 +75,7 @@ class EntryResponse(EntryBase, TimestampMixin):
     word_count: int
     is_pinned: bool
     user_id: uuid.UUID
+    content_plain_text: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     media_count: int = 0
@@ -75,7 +85,7 @@ class EntryPreviewResponse(TimestampMixin):
     """Entry preview schema for listings (truncated content)."""
     id: uuid.UUID
     title: Optional[str] = None
-    content: Optional[str] = None  # Truncated by endpoint
+    content_plain_text: Optional[str] = None  # Truncated by endpoint
     journal_id: uuid.UUID
     created_at: datetime
     updated_at: datetime

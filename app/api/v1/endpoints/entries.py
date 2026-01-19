@@ -13,8 +13,9 @@ from app.api.dependencies import get_current_user
 from app.core.database import get_session
 from app.core.exceptions import EntryNotFoundError, JournalNotFoundError, ValidationError
 from app.core.logging_config import log_user_action, log_error
-from app.core.media_signing import attach_signed_urls
+from app.core.media_signing import attach_signed_urls, attach_signed_urls_to_delta
 from app.models.user import User
+from app.models.entry import EntryMedia
 from app.models.integration import Integration, IntegrationProvider
 from app.schemas.entry import (
     EntryCreate,
@@ -29,6 +30,41 @@ from app.services.tag_service import TagService
 
 router = APIRouter(prefix="/entries", tags=["entries"])
 logger = logging.getLogger(__name__)
+
+
+def _build_entry_response(
+    entry,
+    user_id: uuid.UUID,
+    session: Session,
+) -> EntryResponse:
+    response = EntryResponse.model_validate(entry)
+    if entry.content_delta:
+        media = session.exec(
+            select(EntryMedia).where(EntryMedia.entry_id == entry.id)
+        ).all()
+        immich_integration = session.exec(
+            select(Integration)
+            .where(Integration.user_id == user_id)
+            .where(Integration.provider == IntegrationProvider.IMMICH)
+        ).first()
+        immich_base_url = immich_integration.base_url if immich_integration else None
+
+        # Attach signed URLs - returns a dict
+        delta_dict = attach_signed_urls_to_delta(
+            entry.content_delta,
+            list(media),
+            str(user_id),
+            external_base_url=immich_base_url,
+        )
+
+        # In Pydantic v2, we should ideally assign a model instance to avoid serialization warnings,
+        # or at least ensure the dict matches the schema.
+        # Here we re-validate/parse the dict into a QuillDelta instance.
+        from app.schemas.entry import QuillDelta
+        if delta_dict:
+            response.content_delta = QuillDelta.model_validate(delta_dict)
+
+    return response
 
 @router.post(
     "/",
@@ -52,7 +88,7 @@ async def create_entry(
     try:
         entry = entry_service.create_entry(current_user.id, entry_data)
         log_user_action(current_user.email, f"created entry {entry.id}", request_id=None)
-        return entry
+        return _build_entry_response(entry, current_user.id, session)
     except JournalNotFoundError:
         raise HTTPException(status_code=404, detail="Journal not found")
     except ValueError as e:
@@ -242,7 +278,7 @@ async def get_entry(
         entry = entry_service.get_entry_by_id(entry_id, current_user.id)
         if not entry:
             raise HTTPException(status_code=404, detail="Entry not found")
-        return entry
+        return _build_entry_response(entry, current_user.id, session)
     except HTTPException:
         raise
     except Exception as e:
@@ -276,7 +312,7 @@ async def update_entry(
     try:
         entry = entry_service.update_entry(entry_id, current_user.id, entry_data)
         log_user_action(current_user.email, "Updated entry", request_id=None)
-        return entry
+        return _build_entry_response(entry, current_user.id, session)
     except EntryNotFoundError:
         raise HTTPException(status_code=404, detail="Entry not found")
     except JournalNotFoundError:
@@ -345,7 +381,7 @@ async def toggle_pin(
     try:
         entry = entry_service.toggle_pin(entry_id, current_user.id)
         log_user_action(current_user.email, f"toggled pin for entry {entry_id}", request_id=None)
-        return entry
+        return _build_entry_response(entry, current_user.id, session)
     except EntryNotFoundError:
         raise HTTPException(status_code=404, detail="Entry not found")
     except Exception as e:

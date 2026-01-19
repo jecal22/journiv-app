@@ -99,7 +99,14 @@ class EntryDTO(BaseModel):
     """
     # Actual Entry fields
     title: Optional[str] = Field(None, max_length=300, description="Entry title")
-    content: Optional[str] = Field(None, description="Entry content (plain text or markdown)")
+    content_delta: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Entry content as Quill Delta JSON (source of truth)",
+    )
+    content_plain_text: Optional[str] = Field(
+        None,
+        description="Plain-text extraction from content_delta",
+    )
     entry_date: date = Field(..., description="User's local date for this entry")
     entry_datetime_utc: datetime = Field(..., description="UTC timestamp when entry occurred")
     entry_timezone: str = Field(default="UTC", description="IANA timezone for entry context")

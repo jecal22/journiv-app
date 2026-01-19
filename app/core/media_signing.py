@@ -8,7 +8,9 @@ from typing import Optional
 from urllib.parse import urlencode
 
 from app.core.config import settings
+from app.core.scoped_cache import ScopedCache
 from app.core.signing import generate_media_signature
+from app.models.entry import EntryMedia
 from app.models.enums import UploadStatus
 from app.models.integration import IntegrationProvider
 from app.schemas.entry import EntryMediaResponse, MediaOrigin
@@ -172,6 +174,103 @@ def attach_signed_urls(
         response.signed_thumbnail_url = None
 
     return response
+
+
+def attach_signed_urls_to_delta(
+    delta: Optional[dict],
+    media_items: list[EntryMedia],
+    user_id: str,
+    *,
+    cache: Optional[ScopedCache] = None,
+    external_base_url: Optional[str] = None,
+) -> Optional[dict]:
+    if not isinstance(delta, dict):
+        return delta
+    ops = delta.get("ops")
+    if not isinstance(ops, list):
+        return delta
+
+    cache = cache or ScopedCache("entry_delta_media")
+    media_map = {str(media.id): media for media in media_items}
+
+    updated_ops: list[dict] = []
+    for op in ops:
+        if not isinstance(op, dict):
+            updated_ops.append(op)
+            continue
+        insert = op.get("insert")
+        if isinstance(insert, dict):
+            updated_insert = dict(insert)
+            for key in ("image", "video", "audio"):
+                media_id = updated_insert.get(key)
+                if not isinstance(media_id, str):
+                    continue
+                media = media_map.get(media_id)
+                if not media:
+                    continue
+                signed_url = _resolve_signed_url(
+                    media,
+                    user_id,
+                    cache,
+                    external_base_url,
+                )
+                if signed_url:
+                    updated_insert[key] = signed_url
+
+            # Sanitize: ensure only one key remains
+            if len(updated_insert) > 1:
+                # Priority: image > video > audio
+                sanitized = {}
+                found = False
+                for key in ("image", "video", "audio"):
+                    if key in updated_insert:
+                        sanitized[key] = updated_insert[key]
+                        found = True
+                        break
+
+                if found:
+                    updated_insert = sanitized
+
+            updated_op = dict(op)
+            updated_op["insert"] = updated_insert
+            updated_ops.append(updated_op)
+        else:
+            updated_ops.append(op)
+
+    updated_delta = dict(delta)
+    updated_delta["ops"] = updated_ops
+    return updated_delta
+
+
+def _resolve_signed_url(
+    media: EntryMedia,
+    user_id: str,
+    cache: ScopedCache,
+    external_base_url: Optional[str],
+) -> Optional[str]:
+    cache_key = f"{user_id}__{media.entry_id}__{media.id}__original"
+    cached = cache.get(cache_key, "signed_url")
+    if cached:
+        expires_at = cached.get("expires_at")
+        if isinstance(expires_at, int) and not is_signature_expired(
+            expires_at,
+            settings.media_signed_url_grace_seconds,
+        ):
+            return cached.get("url")
+
+    response = attach_signed_urls(
+        EntryMediaResponse.model_validate(media),
+        user_id,
+        external_base_url=external_base_url,
+    )
+    if response.signed_url and response.signed_url_expires_at:
+        cache.set(
+            cache_key,
+            "signed_url",
+            {"url": response.signed_url, "expires_at": response.signed_url_expires_at},
+            ttl_seconds=settings.media_signed_url_ttl_seconds,
+        )
+    return response.signed_url
 
 
 def _build_external_url(base_url: Optional[str], asset_id: str) -> Optional[str]:

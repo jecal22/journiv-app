@@ -16,6 +16,7 @@ from app.models.entry import Entry, EntryMedia
 from app.models.entry_tag_link import EntryTagLink
 from app.models.journal import Journal
 from app.schemas.entry import EntryCreate, EntryUpdate, EntryMediaCreate, EntryMediaCreateRequest
+from app.utils.quill_delta import extract_plain_text
 
 DEFAULT_ENTRY_PAGE_LIMIT = 50
 MAX_ENTRY_PAGE_LIMIT = 100
@@ -106,8 +107,10 @@ class EntryService:
             log_warning(f"Journal not found for user {user_id}: {entry_data.journal_id}")
             raise JournalNotFoundError("Journal not found")
 
-        # Calculate word count
-        word_count = len(entry_data.content.split()) if entry_data.content else 0
+        plain_text = extract_plain_text(
+            entry_data.content_delta.model_dump() if entry_data.content_delta else None
+        )
+        word_count = len(plain_text.split()) if plain_text else 0
 
         from app.services.user_service import UserService
         user_service = UserService(self.session)
@@ -122,7 +125,8 @@ class EntryService:
 
         entry = Entry(
             title=entry_data.title,
-            content=entry_data.content,
+            content_delta=entry_data.content_delta.model_dump() if entry_data.content_delta else None,
+            content_plain_text=plain_text or None,
             entry_date=entry_date,
             entry_datetime_utc=entry_dt_utc,
             entry_timezone=entry_tz,
@@ -253,10 +257,12 @@ class EntryService:
         # Update fields
         if entry_data.title is not None:
             entry.title = entry_data.title
-        if entry_data.content is not None:
-            entry.content = entry_data.content
-            # Recalculate word count
-            entry.word_count = len(entry_data.content.split())
+        if entry_data.content_delta is not None:
+            delta_payload = entry_data.content_delta.model_dump()
+            entry.content_delta = delta_payload
+            plain_text = extract_plain_text(delta_payload)
+            entry.content_plain_text = plain_text or None
+            entry.word_count = len(plain_text.split()) if plain_text else 0
         if entry_data.entry_timezone is not None:
             tz_value = (entry_data.entry_timezone or "UTC").strip() or "UTC"
             entry.entry_timezone = tz_value
@@ -488,7 +494,7 @@ class EntryService:
         """Search entries by content."""
         statement = select(Entry).where(
             Entry.user_id == user_id,
-            Entry.content.ilike(f"%{query}%")
+            Entry.content_plain_text.ilike(f"%{query}%")
         )
 
         if journal_id:
