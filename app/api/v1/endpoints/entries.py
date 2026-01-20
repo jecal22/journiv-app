@@ -94,10 +94,7 @@ async def get_user_entries(
         )
         return entries
     except Exception as e:
-        logger.error(
-            "Unexpected error fetching entries",
-            extra={"user_id": str(current_user.id), "error": str(e)}
-        )
+        log_error(e, message="Unexpected error fetching entries", user_email=current_user.email)
         raise HTTPException(status_code=500, detail="An error occurred while fetching entries")
 
 

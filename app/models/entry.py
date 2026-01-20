@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
 from pydantic import field_validator, model_validator
-from sqlalchemy import Column, ForeignKey, Enum as SAEnum, UniqueConstraint, String, DateTime, Float
+from sqlalchemy import Column, ForeignKey, Enum as SAEnum, UniqueConstraint, String, DateTime, Float, Boolean, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, Index, CheckConstraint, Column as SQLModelColumn, JSON
 
@@ -34,6 +34,7 @@ class Entry(BaseModel, table=True):
     Journal entry model
     """
     __tablename__ = "entry"
+
     title: Optional[str] = Field(None, max_length=300)
     content: Optional[str] = Field(None, max_length=100000)  # 100K character limit
     journal_id: uuid.UUID = Field(
@@ -61,6 +62,11 @@ class Entry(BaseModel, table=True):
     )
     word_count: int = Field(default=0, ge=0, le=50000)  # Reasonable word count limit
     is_pinned: bool = Field(default=False)
+    media_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, server_default="0", nullable=False, index=True),
+        description="Number of media items associated with this entry"
+    )
 
     # Structured location fields
     location_json: Optional[dict] = Field(

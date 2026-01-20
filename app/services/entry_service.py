@@ -185,7 +185,10 @@ class EntryService:
         offset: int = 0,
         include_pinned: bool = True
     ) -> List[Entry]:
-        """Get entries for a specific journal."""
+        """Get entries for a specific journal.
+
+        The media_count field is automatically synchronized by database triggers.
+        """
         from app.services.journal_service import JournalService
         JournalService(self.session)._get_owned_journal(journal_id, user_id)
 

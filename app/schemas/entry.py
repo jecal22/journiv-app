@@ -68,6 +68,7 @@ class EntryResponse(EntryBase, TimestampMixin):
     user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    media_count: int = 0
 
 
 class EntryPreviewResponse(TimestampMixin):
@@ -81,6 +82,7 @@ class EntryPreviewResponse(TimestampMixin):
     entry_date: date
     entry_datetime_utc: datetime
     entry_timezone: str
+    media_count: int = 0
 
 
 from app.models.enums import MediaType, UploadStatus
