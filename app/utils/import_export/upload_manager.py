@@ -2,6 +2,7 @@
 Upload manager for handling import file uploads.
 """
 import uuid
+import asyncio
 from pathlib import Path
 
 from fastapi import UploadFile, HTTPException
@@ -47,21 +48,40 @@ class UploadManager:
 
         try:
             # Save uploaded file
-            chunk_size = 8192
+            chunk_size = 1024 * 1024  # 1MB chunks
             total_size = 0
             max_size_mb = settings.import_export_max_file_size_mb
             too_large = False
 
+            # NOTE: For very large files (5GB+), ensure Gunicorn/Uvicorn timeout is increased.
+            # Default timeout is insufficient for 1GB+ uploads over slow networks.
+            # Set --timeout to limit higher in configuration.
+
             with open(upload_path, "wb") as buffer:
-                while chunk := await file.read(chunk_size):
-                    total_size += len(chunk)
+                # Use the underlying file object if available for better performance
+                # But we need to count bytes for the size limit check
+                if hasattr(file.file, "read"):
+                    loop = asyncio.get_running_loop()
+                    while True:
+                        chunk = await loop.run_in_executor(None, file.file.read, chunk_size)
+                        if not chunk:
+                            break
+                        total_size += len(chunk)
+                        if not MediaHandler.validate_file_size(total_size, max_size_mb):
+                            too_large = True
+                            break
+                        await loop.run_in_executor(None, buffer.write, chunk)
+                else:
+                    # Fallback for async-only interfaces or mocks
+                    while chunk := await file.read(chunk_size):
+                        total_size += len(chunk)
 
-                    # Check file size limit
-                    if not MediaHandler.validate_file_size(total_size, max_size_mb):
-                        too_large = True
-                        break
+                        # Check file size limit
+                        if not MediaHandler.validate_file_size(total_size, max_size_mb):
+                            too_large = True
+                            break
 
-                    buffer.write(chunk)
+                        buffer.write(chunk)
 
             if too_large:
                 # Clean up partial file
