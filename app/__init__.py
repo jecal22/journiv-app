@@ -2,6 +2,6 @@
 Journiv App Backend - A private journal application.
 """
 
-__version__ = "0.1.0-beta.14"
+__version__ = "0.1.0-beta.15"
 __author__ = "Swalab Tech"
 __description__ = "Private Journal"
