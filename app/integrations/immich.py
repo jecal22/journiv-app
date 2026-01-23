@@ -515,18 +515,20 @@ def _normalize_immich_asset(
         variant="thumbnail",
         ttl_seconds=settings.media_thumbnail_signed_url_ttl_seconds,
     )
-    # Use video-specific TTL if asset is a video
-    original_ttl = (
-        settings.media_signed_url_video_ttl_seconds
-        if asset_type == AssetType.VIDEO
-        else settings.media_signed_url_ttl_seconds
-    )
+
+    # Use type-specific variant and TTL
+    if asset_type == AssetType.VIDEO:
+        original_variant = "video"
+        original_ttl = settings.media_signed_url_video_ttl_seconds
+    else:
+        original_variant = "image"
+        original_ttl = settings.media_signed_url_ttl_seconds
 
     original_url = _build_signed_proxy_url(
         provider=provider,
         asset_id=asset_id,
         user_id=user_id,
-        variant="original",
+        variant=original_variant,
         ttl_seconds=original_ttl,
     )
 

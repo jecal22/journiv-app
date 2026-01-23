@@ -687,13 +687,14 @@ async def fetch_proxy_asset(
 
         if variant == "thumbnail":
             url = f"{integration_base_url}/api/assets/{asset_id}/thumbnail"
-        elif variant == "original":
-            # For original, we use the thumbnail endpoint with size=preview which
-            # gives a higher quality image jpg images and work for HEIC images too.
-            # We do not get /original as those are higher quality and large in size and
-            # overkill to display on web/mobile and also HEIC will fail unless we support
-            # HEIC conversion.
+        elif variant == "image":
+            # For images, use thumbnail?size=preview to get JPEG/WebP (avoids HEIC compatibility issues)
+            # This provides good quality for web/mobile display
             url = f"{integration_base_url}/api/assets/{asset_id}/thumbnail?size=preview"
+        elif variant == "video":
+            # For videos, use the video/playback endpoint which supports byte-range requests for streaming
+            # This enables seeking and progressive loading without downloading the entire file
+            url = f"{integration_base_url}/api/assets/{asset_id}/video/playback"
         else:
             raise ValueError(f"Unknown variant {variant}")
     else:
@@ -701,7 +702,7 @@ async def fetch_proxy_asset(
 
     # Prepare headers
     headers = {"x-api-key": api_key}
-    if range_header and variant == "original":
+    if range_header and variant in ("video"):
         headers["Range"] = range_header
 
     # Make request

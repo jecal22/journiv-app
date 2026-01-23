@@ -467,29 +467,19 @@ async def proxy_thumbnail(
     )
 
 
-@router.get(
-    "/{provider}/proxy/{asset_id}/original",
-    status_code=status.HTTP_200_OK,
-    responses={
-        400: {"description": "Integration not found or inactive"},
-        401: {"description": "Not authenticated or provider authentication failed"},
-        404: {"description": "Asset not found"},
-        416: {"description": "Range not satisfiable"},
-        500: {"description": "Failed to fetch original file"},
-    }
-)
-async def proxy_original(
+async def _proxy_asset_common(
     provider: IntegrationProvider,
     asset_id: str,
-    uid: Annotated[str, Query(alias="uid")],
-    exp: Annotated[int, Query(alias="exp")],
-    sig: Annotated[str, Query(alias="sig")],
-    range_header: Annotated[Optional[str], Header(alias="Range")] = None
+    uid: str,
+    exp: int,
+    sig: str,
+    variant: str,
+    range_header: Optional[str] = None,
 ):
     """
-    Proxy an asset's original file from the provider.
+    Common logic for proxying assets from integration providers.
 
-    Supports Range requests for video streaming and seeking.
+    Handles authentication, signature verification, error handling, and streaming.
     """
     from fastapi.responses import StreamingResponse
     from app.core.database import get_session_context
@@ -502,7 +492,7 @@ async def proxy_original(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Signed URL expired")
     if not verify_media_signature(
         provider.value,
-        "original",
+        variant,
         asset_id,
         str(user_id),
         exp,
@@ -511,7 +501,7 @@ async def proxy_original(
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
 
-    # 1. Fetch asset stream using service
+    # Fetch asset stream using service
     try:
         with get_session_context() as session:
             response = await fetch_proxy_asset(
@@ -519,23 +509,21 @@ async def proxy_original(
                 user_id=user_id,
                 provider=provider,
                 asset_id=asset_id,
-                variant="original",
+                variant=variant,
                 range_header=range_header,
             )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        log_error(f"Proxy original failed: {e}")
+        log_error(f"Proxy {variant} failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch original file",
+            detail=f"Failed to fetch {variant} asset",
         )
-
 
     # Handle provider errors
     if response.status_code in (401, 403):
         log_warning(f"Invalid {provider} token for user {user_id}")
-
         # Update error state in new session
         try:
             with get_session_context() as params_session:
@@ -606,6 +594,59 @@ async def proxy_original(
         headers=response_headers,
         background=BackgroundTask(_close_httpx_stream, response)
     )
+
+
+@router.get(
+    "/{provider}/proxy/{asset_id}/image",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"description": "Integration not found or inactive"},
+        401: {"description": "Not authenticated or provider authentication failed"},
+        404: {"description": "Asset not found"},
+        500: {"description": "Failed to fetch image"},
+    }
+)
+async def proxy_image(
+    provider: IntegrationProvider,
+    asset_id: str,
+    uid: Annotated[str, Query(alias="uid")],
+    exp: Annotated[int, Query(alias="exp")],
+    sig: Annotated[str, Query(alias="sig")],
+):
+    """
+    Proxy an image asset from the provider.
+
+    Returns JPEG/WebP format to avoid HEIC compatibility issues.
+    """
+    return await _proxy_asset_common(provider, asset_id, uid, exp, sig, "image")
+
+
+@router.get(
+    "/{provider}/proxy/{asset_id}/video",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {"description": "Integration not found or inactive"},
+        401: {"description": "Not authenticated or provider authentication failed"},
+        404: {"description": "Asset not found"},
+        416: {"description": "Range not satisfiable"},
+        500: {"description": "Failed to fetch video"},
+    }
+)
+async def proxy_video(
+    provider: IntegrationProvider,
+    asset_id: str,
+    uid: Annotated[str, Query(alias="uid")],
+    exp: Annotated[int, Query(alias="exp")],
+    sig: Annotated[str, Query(alias="sig")],
+    range_header: Annotated[Optional[str], Header(alias="Range")] = None
+):
+    """
+    Proxy a video asset from the provider for streaming playback.
+
+    Supports byte-range requests for seeking and progressive loading.
+    Uses the provider's video streaming endpoint for optimal performance.
+    """
+    return await _proxy_asset_common(provider, asset_id, uid, exp, sig, "video", range_header)
 
 
 
