@@ -366,7 +366,7 @@ class TestAlbumAssetManagement:
         Test that all assets are removed when none are referenced by other entries.
         """
         from app.integrations.service import remove_assets_from_integration_album
-        from app.models.integration import IntegrationProvider
+        from app.models.integration import IntegrationProvider, ImportMode
         from unittest.mock import MagicMock, AsyncMock, patch
         import uuid
 
@@ -384,8 +384,10 @@ class TestAlbumAssetManagement:
         # Second call: get integration
         mock_integration = MagicMock()
         mock_integration.is_active = True
+        mock_integration.import_mode = ImportMode.LINK_ONLY
         mock_integration.base_url = "https://immich.example.com"
         mock_integration.access_token_encrypted = "encrypted-token"
+        mock_integration.get_metadata.return_value = {"album_id": "album-123"}
 
         mock_session.exec.side_effect = [
             mock_result,  # First call: remaining asset check

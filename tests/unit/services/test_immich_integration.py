@@ -95,7 +95,7 @@ def test_import_handles_external_media_link_only():
         )
 
         assert result["imported"] is True
-        assert result["media_id"] == mock_media.id
+        assert result["media_id"] == str(mock_media.id)
 
         # Verify _create_media_record was called with correct args
         mock_create.assert_called_once()
@@ -178,7 +178,7 @@ def test_import_handles_external_media_with_no_media_dir():
         )
 
         assert result["imported"] is True
-        assert result["media_id"] == mock_media.id
+        assert result["media_id"] == str(mock_media.id)
 
         # Verify _create_media_record was called with correct args
         mock_create.assert_called_once()
@@ -227,7 +227,7 @@ def test_import_allows_duplicate_external_media():
 
         assert result["imported"] is True
         assert result["deduplicated"] is False
-        assert result["media_id"] == mock_media.id
+        assert result["media_id"] == str(mock_media.id)
 
         # Verify creation WAS called
         mock_create.assert_called_once()
