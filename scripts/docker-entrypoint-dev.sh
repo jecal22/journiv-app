@@ -17,6 +17,6 @@ exec gunicorn app.main:app \
     --worker-connections 1000 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
-    --timeout ${GUNICORN_TIMEOUT:-120} \
+    --timeout ${GUNICORN_TIMEOUT:-300} \
     --access-logfile - \
     -b 0.0.0.0:8000

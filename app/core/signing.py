@@ -192,3 +192,65 @@ def verify_media_signature(
     except (ValueError, TypeError):
         # Invalid parameters result in failed verification
         return False
+
+
+def generate_export_signature(
+    job_id: str,
+    user_id: str,
+    expires_at: int,
+    secret: str,
+) -> str:
+    """
+    Generate a short-lived HMAC signature for export download.
+
+    Args:
+        job_id: Export job identifier
+        user_id: User identifier
+        expires_at: Expiration timestamp (Unix epoch seconds)
+        secret: Secret key for HMAC
+
+    Returns:
+        Hex-encoded HMAC-SHA256 signature
+    """
+    # Validate inputs
+    if not job_id or not str(job_id).strip():
+        raise ValueError("job_id cannot be empty")
+    if not user_id or not str(user_id).strip():
+        raise ValueError("user_id cannot be empty")
+    if not secret or not secret.strip():
+        raise ValueError("secret cannot be empty")
+
+    # Prevent delimiter injection
+    if ":" in str(job_id):
+        raise ValueError("job_id cannot contain ':'")
+    if ":" in str(user_id):
+        raise ValueError("user_id cannot contain ':'")
+
+    message = f"JOURNIV-EXPORT-V1:{job_id}:{user_id}:{expires_at}"
+    return hmac.new(
+        secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+
+def verify_export_signature(
+    job_id: str,
+    user_id: str,
+    expires_at: int,
+    signature: str,
+    secret: str,
+) -> bool:
+    """
+    Verify an export signature using constant-time comparison.
+    """
+    try:
+        expected = generate_export_signature(
+            job_id,
+            user_id,
+            expires_at,
+            secret,
+        )
+        return hmac.compare_digest(expected, signature)
+    except (ValueError, TypeError):
+        return False

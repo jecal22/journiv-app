@@ -422,15 +422,26 @@ class ExportService:
         - media.alt_text -> alt_text (also maps to caption for compatibility)
         - Includes all new fields: thumbnail_path, file_metadata, upload_status
         """
-        sanitized_path = self._build_media_export_path(media)
-        actual_path = Path(settings.media_root) / media.file_path
-        self._media_export_map[sanitized_path] = actual_path
+        sanitized_path = None
+        if media.file_path:
+            sanitized_path = self._build_media_export_path(media)
+            # Ensure we don't try to resolve None or empty paths
+            actual_path = Path(settings.media_root) / media.file_path
+            self._media_export_map[sanitized_path] = actual_path
+
+        # Determine filename with fallback
+        filename = media.original_filename
+        if not filename and media.file_path:
+            filename = media.file_path.split('/')[-1]
+        if not filename:
+            # Fallback for external media without original_filename
+            filename = f"media_{media.id}"
 
         return MediaDTO(
-            filename=media.original_filename or media.file_path.split('/')[-1],
+            filename=filename,
             file_path=sanitized_path,
             media_type=media.media_type.value if hasattr(media.media_type, 'value') else str(media.media_type),
-            file_size=media.file_size,
+            file_size=media.file_size or 0,  # Ensure non-None for older entries/external
             mime_type=media.mime_type,
             checksum=media.checksum,
             width=media.width,
@@ -444,6 +455,13 @@ class ExportService:
             created_at=media.created_at,
             updated_at=media.updated_at,
             caption=media.alt_text,  # PLACEHOLDER: Map alt_text to caption for compatibility
+
+            # External provider fields
+            external_provider=media.external_provider,
+            external_asset_id=media.external_asset_id,
+            external_url=media.external_url,
+            external_created_at=media.external_created_at,
+            external_metadata=media.external_metadata,
         )
 
     def _get_mood_definitions(self) -> List[MoodDefinitionDTO]:

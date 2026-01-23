@@ -1,0 +1,233 @@
+import pytest
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
+from datetime import datetime, timezone
+from pathlib import Path
+
+from app.services.export_service import ExportService
+from app.services.import_service import ImportService
+from app.models.entry import EntryMedia
+from app.models.enums import MediaType, UploadStatus
+from app.schemas.dto import MediaDTO
+
+def test_export_includes_external_fields():
+    """Verify that export service populates external fields in MediaDTO."""
+    db = MagicMock()
+    service = ExportService(db)
+
+    with patch('app.services.export_service.settings') as mock_settings:
+        mock_settings.media_root = "/tmp/media"
+
+        # Create media with external fields
+        media = MagicMock(spec=EntryMedia)
+        media.id = uuid4()
+        media.entry_id = uuid4()
+        media.file_path = None
+        media.original_filename = "photo.jpg"
+        media.media_type = MediaType.IMAGE
+        media.file_size = 1234
+        media.mime_type = "image/jpeg"
+        media.upload_status = UploadStatus.COMPLETED
+        media.created_at = datetime.now(timezone.utc)
+        media.updated_at = datetime.now(timezone.utc)
+
+        # External fields
+        media.external_provider = "immich"
+        media.external_asset_id = "asset-123"
+        media.external_url = "https://immich.example.com/asset-123"
+        media.external_created_at = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        media.external_metadata = {"exif": "data"}
+
+        # Default others
+        media.checksum = None
+        media.width = 100
+        media.height = 100
+        media.duration = None
+        media.alt_text = None
+        media.thumbnail_path = None
+        media.file_metadata = None
+
+        dto = service._convert_media_to_dto(media)
+
+        assert dto.external_provider == "immich"
+        assert dto.external_asset_id == "asset-123"
+        assert dto.external_url == "https://immich.example.com/asset-123"
+        assert dto.external_created_at == datetime(2023, 1, 1, tzinfo=timezone.utc)
+        assert dto.external_metadata == {"exif": "data"}
+
+def test_import_handles_external_media_link_only():
+    """Verify that import service handles media with external_provider but no file_path."""
+    db = MagicMock()
+    service = ImportService(db)
+
+    # Setup DTO with external fields and NO file_path
+    media_dto = MediaDTO(
+        filename="photo.jpg",
+        media_type="image",
+        file_size=1000,
+        mime_type="image/jpeg",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        external_provider="immich",
+        external_asset_id="asset-123",
+        external_url="https://immich.example.com/assets/asset-123",
+        external_metadata={"foo": "bar"}
+    )
+
+    entry_id = uuid4()
+    user_id = uuid4()
+
+    # Simulate no existing media found (for deduplication check)
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    # Mock _create_media_record to return a media object
+    with patch.object(service, '_create_media_record') as mock_create:
+        mock_media = MagicMock(spec=EntryMedia)
+        mock_media.id = uuid4()
+        mock_create.return_value = mock_media
+        result = service._import_media(
+            entry_id=entry_id,
+            user_id=user_id,
+            media_dto=media_dto,
+            media_dir=Path("/tmp/media"), # Should be ignored for external
+            existing_checksums=set(),
+            summary=MagicMock()
+        )
+
+        assert result["imported"] is True
+        assert result["media_id"] == mock_media.id
+
+        # Verify _create_media_record was called with correct args
+        mock_create.assert_called_once()
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs['file_path'] is None
+        assert call_kwargs['media_dto'].external_provider == "immich"
+
+def test_create_media_record_populates_external_fields():
+    """Verify that _create_media_record populates EntryMedia with external fields."""
+    db = MagicMock()
+    service = ImportService(db)
+
+    media_dto = MediaDTO(
+        filename="photo.jpg",
+        media_type="image",
+        file_size=1000,
+        mime_type="image/jpeg",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        external_provider="immich",
+        external_asset_id="asset-123",
+        external_url="https://immich.example.com/assets/asset-123",
+        external_created_at=datetime(2023, 1, 1, tzinfo=timezone.utc),
+        external_metadata={"foo": "bar"}
+    )
+
+    media = service._create_media_record(
+        entry_id=uuid4(),
+        file_path=None,
+        media_dto=media_dto,
+        checksum="hash123",
+        file_size=1000
+    )
+
+    assert media.external_provider == "immich"
+    assert media.external_asset_id == "asset-123"
+    assert media.external_url == "https://immich.example.com/assets/asset-123"
+    assert media.external_created_at == datetime(2023, 1, 1, tzinfo=timezone.utc)
+    assert media.external_metadata == {"foo": "bar"}
+
+def test_import_handles_external_media_with_no_media_dir():
+    """Verify that import service handles external media when media_dir is None."""
+    db = MagicMock()
+    service = ImportService(db)
+
+    # Setup DTO with external fields and NO file_path
+    media_dto = MediaDTO(
+        filename="photo.jpg",
+        media_type="image",
+        file_size=1000,
+        mime_type="image/jpeg",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        external_provider="immich",
+        external_asset_id="asset-123",
+        external_url="https://immich.example.com/assets/asset-123",
+        external_metadata={"foo": "bar"}
+    )
+
+    entry_id = uuid4()
+    user_id = uuid4()
+
+    # Simulate no existing media found (for deduplication check)
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    # Mock _create_media_record to return a media object
+    with patch.object(service, '_create_media_record') as mock_create:
+        mock_media = MagicMock(spec=EntryMedia)
+        mock_media.id = uuid4()
+        mock_create.return_value = mock_media
+
+        # Pass media_dir=None explicitly
+        result = service._import_media(
+            entry_id=entry_id,
+            user_id=user_id,
+            media_dto=media_dto,
+            media_dir=None, # Typical for imports with only external media
+            existing_checksums=set(),
+            summary=MagicMock()
+        )
+
+        assert result["imported"] is True
+        assert result["media_id"] == mock_media.id
+
+        # Verify _create_media_record was called with correct args
+        mock_create.assert_called_once()
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs['file_path'] is None
+        assert call_kwargs['media_dto'].external_provider == "immich"
+
+
+def test_import_allows_duplicate_external_media():
+    """Verify that import ALLOWS duplicate external media (does not deduplicate)."""
+    db = MagicMock()
+    service = ImportService(db)
+
+    media_dto = MediaDTO(
+        filename="photo.jpg",
+        media_type="image",
+        file_size=1000,
+        mime_type="image/jpeg",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        external_provider="immich",
+        external_asset_id="asset-123", # Same asset ID
+        external_url="https://immich.example.com/assets/asset-123"
+    )
+
+    entry_id = uuid4()
+    user_id = uuid4()
+
+    # Simulate existing media usually would be found if we queried, but we don't query.
+    # We can mock the query to ensure it's NOT CALLED or just verify creation happens.
+
+    # Mock _create_media_record - SHOULD be called now
+    with patch.object(service, '_create_media_record') as mock_create:
+        mock_media = MagicMock(spec=EntryMedia)
+        mock_media.id = uuid4()
+        mock_create.return_value = mock_media
+
+        result = service._import_media(
+            entry_id=entry_id,
+            user_id=user_id,
+            media_dto=media_dto,
+            media_dir=None,
+            existing_checksums=set(),
+            summary=MagicMock()
+        )
+
+        assert result["imported"] is True
+        assert result["deduplicated"] is False
+        assert result["media_id"] == mock_media.id
+
+        # Verify creation WAS called
+        mock_create.assert_called_once()

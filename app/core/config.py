@@ -135,6 +135,7 @@ class Settings(BaseSettings):
     media_signed_url_video_ttl_seconds: int = 1200  # 20 minutes for videos
     media_thumbnail_signed_url_ttl_seconds: int = 86400  # 24 hours for thumbnails
     media_signed_url_grace_seconds: int = 60 # 1 minute grace period
+    export_signed_url_expiration_seconds: int = 3600  # 1 hour expiration for export downloads
 
     # File Processing Timeouts
     ffprobe_timeout: int = 300  # 5 minutes for video metadata extraction
