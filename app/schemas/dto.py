@@ -58,8 +58,15 @@ class MediaDTO(BaseModel):
     # PLACEHOLDER: For import compatibility, not in database yet
     caption: Optional[str] = Field(None, description="PLACEHOLDER: Media caption (not stored in DB, use alt_text)")
 
-    # Import tracking (not exported for regular users)
-    external_id: Optional[str] = Field(None, description="Original ID from source system")
+    # External provider fields
+    external_provider: Optional[str] = Field(None, description="External provider name (e.g., 'immich')")
+    external_asset_id: Optional[str] = Field(None, description="Asset ID in the external provider's system")
+    external_url: Optional[str] = Field(None, description="Full URL to the asset in the external provider")
+    external_created_at: Optional[datetime] = Field(None, description="Creation date from external provider")
+    external_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata from external provider")
+
+    # Import tracking (not exported for regular users in previous versions, but now used for external linking)
+    external_id: Optional[str] = Field(None, description="Original ID from source system (legacy use) or external asset ID")
 
 
 class MoodLogDTO(BaseModel):

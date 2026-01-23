@@ -455,6 +455,13 @@ class ExportService:
             created_at=media.created_at,
             updated_at=media.updated_at,
             caption=media.alt_text,  # PLACEHOLDER: Map alt_text to caption for compatibility
+
+            # External provider fields
+            external_provider=media.external_provider,
+            external_asset_id=media.external_asset_id,
+            external_url=media.external_url,
+            external_created_at=media.external_created_at,
+            external_metadata=media.external_metadata,
         )
 
     def _get_mood_definitions(self) -> List[MoodDefinitionDTO]:

@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     celery_enable_utc: bool = True
 
     # Import/Export Configuration
-    import_export_max_file_size_mb: int = 10240  # Max size for import/export files
+    import_export_max_file_size_mb: int = 500  # Max size for import/export files
     export_cleanup_days: int = 7  # Days to keep export files before cleanup
     import_temp_dir: str = "/data/imports/temp"
     export_dir: str = "/data/exports"

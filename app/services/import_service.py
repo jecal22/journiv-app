@@ -929,20 +929,55 @@ class ImportService:
         Returns:
             {"imported": True/False, "deduplicated": True/False, "stored_relative_path": str | None, "media_id": str | None}
         """
+        # Check if media is external-only (no local file expected)
+        # Check if media is external-only (no local file expected)
+        # We treat None or empty string file_path as "no local file"
+        is_external_link_only = media_dto.external_provider is not None and not media_dto.file_path
+
         # Check if media file exists in media_dir
-        if not media_dir:
+        # Skip check if this is an external link-only media
+        if not media_dir and not is_external_link_only:
             warning_msg = f"No media directory, skipping media: {media_dto.filename}"
             log_warning(warning_msg, user_id=str(user_id), media_filename=media_dto.filename, entry_id=str(entry_id))
             summary.warnings.append(warning_msg)
             summary.media_files_skipped += 1
             return {"imported": False, "deduplicated": False, "stored_relative_path": None, "media_id": None}
 
-        if not media_dto.file_path:
+        if not media_dto.file_path and not media_dto.external_provider:
             warning_msg = f"Missing file_path for media: {media_dto.filename}"
             log_warning(warning_msg, user_id=str(user_id), media_filename=media_dto.filename, entry_id=str(entry_id))
             summary.warnings.append(warning_msg)
             summary.media_files_skipped += 1
             return {"imported": False, "deduplicated": False, "stored_relative_path": None, "media_id": None}
+
+
+        # If it's external only, we skip file system checks
+        if is_external_link_only:
+             # Create new external media record
+             # Normalize file_size to None if not positive (external assets might report 0)
+             file_size = media_dto.file_size if media_dto.file_size and media_dto.file_size > 0 else None
+             media = self._create_media_record(
+                entry_id=entry_id,
+                file_path=None,
+                media_dto=media_dto,
+                checksum=media_dto.checksum,
+                file_size=file_size
+             )
+             self.db.add(media)
+             # Commit happens at journal level, but we need ID
+             self.db.flush()
+
+             if record_mapping and media_dto.external_id:
+                 record_mapping("media", media_dto.external_id, media.id)
+
+             return {
+                "imported": True,
+                "deduplicated": False,
+                "stored_relative_path": None,
+                "stored_filename": media_dto.filename,
+                "source_md5": None,
+                "media_id": str(media.id),
+            }
 
         source_path = Path(media_dto.file_path)
         if not source_path.is_absolute():
@@ -985,6 +1020,7 @@ class ImportService:
 
         # Early deduplication check: If checksum is provided in DTO (e.g., from Journiv export),
         # check for existing EntryMedia before storing the file to avoid unnecessary I/O
+        # For external media, checksum might be None, so we skip this check if media is strictly external and has no checksum
         if media_dto.checksum:
             existing_entry_media = (
                 self.db.query(EntryMedia)
@@ -1147,16 +1183,24 @@ class ImportService:
                 }
 
         # File is new - create media record
-        full_path = self.media_storage_service.get_full_path(relative_path)
+        # For external media (link-only), we might not have a local file
+
+        full_path = None
+        if media_dto.external_provider is not None and media_dto.file_path is None:
+             # External media without local file (link-only)
+             file_size = media_dto.file_size
+        else:
+            full_path = self.media_storage_service.get_full_path(relative_path)
+            file_size = full_path.stat().st_size
 
         media = self._create_media_record(
             entry_id=entry_id,
-            file_path=relative_path,
+            file_path=relative_path, # This might be None for pure external links if logic allowed it, but here relative_path is derived from storage service
             media_dto=media_dto,
             checksum=checksum,
-            file_size=full_path.stat().st_size,
+            file_size=file_size,
         )
-        
+
         try:
             self.db.add(media)
             self.db.commit()
@@ -1189,7 +1233,11 @@ class ImportService:
                 media_service = MediaService(self.db)
 
                 # Generate thumbnail synchronously
-                if not full_path.exists():
+                if full_path is None:
+                    # Can't generate thumbnail for external link-only media without download
+                    # Assuming external_provider might handle thumbnails or we rely on external_url
+                    pass
+                elif not full_path.exists():
                     log_warning(f"Media file not found for thumbnail generation: {full_path}", media_id=str(media.id), file_path=str(full_path))
                 else:
                     thumbnail_path = media_service._generate_thumbnail(
@@ -1265,7 +1313,7 @@ class ImportService:
             file_path=file_path,
             original_filename=media_dto.filename,
             media_type=media_type,
-            file_size=file_size or media_dto.file_size,
+            file_size=file_size,
             mime_type=media_dto.mime_type,
             checksum=checksum,
             thumbnail_path=media_dto.thumbnail_path,
@@ -1277,6 +1325,12 @@ class ImportService:
             file_metadata=media_dto.file_metadata,
             created_at=media_dto.created_at,
             updated_at=media_dto.updated_at,
+            # External provider fields
+            external_provider=media_dto.external_provider,
+            external_asset_id=media_dto.external_asset_id,
+            external_url=media_dto.external_url,
+            external_created_at=media_dto.external_created_at,
+            external_metadata=media_dto.external_metadata,
         )
 
     def _import_tag(

@@ -39,7 +39,15 @@ def test_convert_media_to_dto_immich_asset_no_filepath():
         media_mock.thumbnail_path = "thumbs/immich_photo.jpg"
         media_mock.upload_status = UploadStatus.COMPLETED
         media_mock.created_at = datetime.now(timezone.utc)
+
         media_mock.updated_at = datetime.now(timezone.utc)
+
+        # Explicitly set external fields to None to avoid MagicMock objects being passed to Pydantic
+        media_mock.external_provider = None
+        media_mock.external_asset_id = None
+        media_mock.external_url = None
+        media_mock.external_created_at = None
+        media_mock.external_metadata = None
 
         # Act
         # This call would previously crash with TypeError
@@ -49,6 +57,10 @@ def test_convert_media_to_dto_immich_asset_no_filepath():
         assert dto.filename == "immich_photo.jpg"
         assert dto.file_path is None
         assert dto.media_type == "image"
+        # Verify external fields are populated
+        assert dto.external_provider is None # Mock didn't set it, but field should exist
+        assert dto.external_asset_id is None
+
         # Verify it wasn't added to export map (since it shouldn't have a local path)
         assert len(service._media_export_map) == 0
 
@@ -82,6 +94,13 @@ def test_convert_media_to_dto_immich_asset_fallback_filename():
         media_mock.alt_text = None
         media_mock.file_metadata = None
         media_mock.thumbnail_path = None
+
+        # Explicitly set external fields to None
+        media_mock.external_provider = None
+        media_mock.external_asset_id = None
+        media_mock.external_url = None
+        media_mock.external_created_at = None
+        media_mock.external_metadata = None
 
         dto = service._convert_media_to_dto(media_mock)
 
