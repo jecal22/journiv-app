@@ -59,24 +59,24 @@ jobs:
           # Ensure .so files exist for imports, even if not fully used in mocks
           ls -lh app/plus/
 
-      - name: Run unit tests
+      - name: Run unit and CLI tests
         env:
           SECRET_KEY: test-secret-key
           ENVIRONMENT: test
         run: |
-          echo "🧪 Running unit tests..."
-          python -m pytest tests/unit/ \
+          echo "🧪 Running tests..."
+          python -m pytest tests/unit/ tests/cli/ \
             -v \
             --tb=short \
             --strict-markers \
             --no-cov \
-            --junit-xml=pytest-results-unit.xml
+            --junit-xml=pytest-results.xml
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-unit
+          name: test-results
           path: |
-            pytest-results-unit.xml
+            pytest-results.xml
             .pytest_cache/

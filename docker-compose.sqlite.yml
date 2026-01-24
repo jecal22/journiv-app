@@ -133,6 +133,26 @@ services:
         reservations:
           memory: 512m
 
+  admin-cli:
+    <<: *app-common
+    container_name: journiv-sqlite-admin-cli
+    profiles: ["admin"]
+    command: ["sleep", "infinity"]
+    environment:
+      <<: *common-valkey-env
+      SERVICE_ROLE: admin-cli
+      ENVIRONMENT: production
+    # No healthcheck needed for idle container
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+        reservations:
+          memory: 256m
+
 volumes:
   app_data:
   valkey_data:

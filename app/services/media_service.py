@@ -169,15 +169,15 @@ class MediaService:
             return None
 
     def _detect_mime(self, file_content: bytes) -> str:
+        """Detect MIME type from bytes, used for uploaded content."""
         try:
             return magic.from_buffer(file_content, mime=True)
-        except Exception:
-            if self._magic is not None:
-                try:
-                    return self._magic.from_buffer(file_content)
-                except Exception as exc:
-                    logger.warning("Failed to detect MIME type with libmagic: %s", exc)
-        return "application/octet-stream"
+        except (ImportError, Exception):
+            # Fallback to MediaHandler.detect_mime using a temporary file if needed,
+            # but since we have bytes, we'll try to guess from common headers or just return octet-stream
+            # for backward compatibility with the existing _detect_mime behavior.
+            import mimetypes
+            return "application/octet-stream"
 
     def _generate_filename(self, original_filename: str, user_id: str) -> str:
         """Generate a unique filename with sanitized original name."""
@@ -318,17 +318,8 @@ class MediaService:
         stat = path.stat()
         file_size = stat.st_size
 
-        # Get MIME type
-        try:
-            mime_type = magic.from_file(str(path), mime=True)
-        except Exception:
-            if self._magic is not None:
-                try:
-                    mime_type = self._magic.from_file(str(path))
-                except Exception:
-                    mime_type = "application/octet-stream"
-            else:
-                mime_type = "application/octet-stream"
+        # Get MIME type using centralized MediaHandler
+        mime_type = MediaHandler.detect_mime(path)
 
         # Get media type from MIME type, falling back to extension when needed
         suffix = path.suffix.lower()
@@ -384,32 +375,26 @@ class MediaService:
         }
 
     def _validate_file_internal(self, file_content: bytes, filename: str) -> Tuple[bool, str]:
-        """Core validation logic shared by all validation methods.
-
-        This centralizes file size, MIME type, and extension validation.
-        """
+        """Core validation logic shared by all validation methods."""
         try:
             # Check file size using shared utility
             if not MediaHandler.validate_file_size(len(file_content), self.settings.max_file_size_mb):
                 return False, f"File size exceeds maximum limit of {self.settings.max_file_size_mb}MB"
 
-            # Get allowed types (from settings or cached)
-            allowed_mime_types = {mime.lower() for mime in (self.settings.allowed_media_types or [])} or self.allowed_mime_types
-            allowed_extensions = {ext.lower() for ext in (self.settings.allowed_file_extensions or [])} or self.allowed_extensions
-
-            # Check MIME type
+            # Check MIME type and extension using shared MediaHandler logic
             mime_type = self._detect_mime(file_content)
-            if allowed_mime_types and mime_type.lower() not in allowed_mime_types:
+            allowed_mime_types = self.settings.allowed_media_types or []
+            if not MediaHandler.validate_media_type(mime_type, allowed_mime_types):
                 return False, f"Mime type {mime_type} not allowed"
 
-            # Check file extension
             file_ext = Path(filename).suffix.lower()
+            allowed_extensions = self.settings.allowed_file_extensions or []
             if allowed_extensions and file_ext not in allowed_extensions:
                 return False, f"File extension {file_ext} not allowed"
 
             return True, "File is valid"
-        except Exception as exc:
-            log_error(exc, request_id="", user_email="")
+        except Exception as e:
+            log_error(e)
             return False, "File validation failed"
 
     def validate_file_sync(self, file_content: bytes, filename: str) -> Tuple[bool, str]:

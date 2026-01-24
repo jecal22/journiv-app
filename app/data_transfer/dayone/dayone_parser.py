@@ -81,13 +81,18 @@ class DayOneParser:
     """
 
     @staticmethod
-    def parse_zip(zip_path: Path, extract_to: Path) -> Tuple[List[DayOneJournal], Optional[Path]]:
+    def parse_zip(
+        zip_path: Path,
+        extract_to: Path,
+        is_already_extracted: bool = False
+    ) -> Tuple[List[DayOneJournal], Optional[Path]]:
         """
         Parse Day One ZIP export.
 
         Args:
             zip_path: Path to Day One ZIP file
             extract_to: Directory to extract to
+            is_already_extracted: If True, skip extraction and parse extract_to directly
 
         Returns:
             Tuple of (list of DayOneJournal objects, media directory path)
@@ -96,15 +101,15 @@ class DayOneParser:
             ValueError: If ZIP is invalid or missing required files
             IOError: If extraction fails
         """
-        if not zip_path.exists():
-            raise ValueError(f"ZIP file not found: {zip_path}")
+        if not is_already_extracted:
+            if not zip_path.exists():
+                raise ValueError(f"ZIP file not found: {zip_path}")
 
-        if not zip_path.is_file():
-            raise ValueError(f"ZIP path is not a file: {zip_path}")
+            if not zip_path.is_file():
+                raise ValueError(f"ZIP path is not a file: {zip_path}")
 
         try:
-            # Clean up existing extraction directory
-            if extract_to.exists():
+            if not is_already_extracted:
                 # Safety check: verify extract_to is within allowed base directory
                 base_temp_dir = Path(settings.import_temp_dir).resolve()
                 extract_to_resolved = extract_to.resolve()
@@ -146,76 +151,78 @@ class DayOneParser:
                             f"Extraction path must be within {base_temp_dir}, got {extract_to_resolved}"
                         )
 
-                shutil.rmtree(extract_to)
-            extract_to.mkdir(parents=True, exist_ok=True)
+                if extract_to.exists():
+                    shutil.rmtree(extract_to)
+                extract_to.mkdir(parents=True, exist_ok=True)
 
-            with zipfile.ZipFile(zip_path, 'r') as zipf:
-                # Validate ZIP integrity
-                corrupt_file = zipf.testzip()
-                if corrupt_file is not None:
-                    raise ValueError(f"ZIP file is corrupted: {corrupt_file}")
+            if not is_already_extracted:
+                with zipfile.ZipFile(zip_path, 'r') as zipf:
+                    # Validate ZIP integrity
+                    corrupt_file = zipf.testzip()
+                    if corrupt_file is not None:
+                        raise ValueError(f"ZIP file is corrupted: {corrupt_file}")
 
-                # Enforce max uncompressed size
-                total_size = sum(info.file_size for info in zipf.infolist())
-                max_bytes = settings.import_export_max_file_size_mb * 1024 * 1024
-                if total_size > max_bytes:
-                    raise ValueError(
-                        f"ZIP too large: {total_size / (1024*1024):.1f}MB "
-                        f"(max: {settings.import_export_max_file_size_mb}MB)"
-                    )
-
-                extract_root = extract_to.resolve()
-                file_count = 0
-                max_files = 50000  # Prevent zip bombs with many files
-
-                for info in zipf.infolist():
-                    file_count += 1
-                    if file_count > max_files:
-                        raise ValueError(f"ZIP contains too many files (max: {max_files})")
-
-                    # Skip directories
-                    if info.is_dir():
-                        continue
-
-                    # Validate filename length
-                    if len(info.filename) > MAX_FILENAME_LENGTH:
-                        raise ValueError(f"Filename too long: {info.filename[:50]}...")
-
-                    # Validate filename before constructing path
-                    if info.filename.startswith('/') or '..' in info.filename.split('/'):
-                        raise ValueError(f"ZIP contains unsafe path: {info.filename}")
-
-                    # Check for null bytes in filename
-                    if '\x00' in info.filename:
-                        raise ValueError(f"ZIP contains invalid filename: {info.filename}")
-
-                    dest_path = (extract_to / info.filename).resolve()
-
-                    # Prevent directory traversal / absolute paths
-                    try:
-                        dest_path.relative_to(extract_root)
-                    except ValueError:
-                        raise ValueError(f"ZIP contains unsafe path: {info.filename}")
-
-                    # Disallow symlinks (check external attributes)
-                    if info.external_attr >> 16 & 0o170000 == 0o120000:
-                        raise ValueError(f"ZIP contains symlink: {info.filename}")
-
-                    # Validate file extension
-                    file_ext = os.path.splitext(info.filename.lower())[1]
-                    if file_ext and file_ext not in ALLOWED_EXTENSIONS:
-                        log_warning(
-                            f"Skipping file with unsupported extension: {info.filename}",
-                            filename=info.filename,
-                            extension=file_ext
+                    # Enforce max uncompressed size
+                    total_size = sum(info.file_size for info in zipf.infolist())
+                    max_bytes = settings.import_export_max_file_size_mb * 1024 * 1024
+                    if total_size > max_bytes:
+                        raise ValueError(
+                            f"ZIP too large: {total_size / (1024*1024):.1f}MB "
+                            f"(max: {settings.import_export_max_file_size_mb}MB)"
                         )
-                        continue
 
-                    # Extract this validated file
-                    dest_path.parent.mkdir(parents=True, exist_ok=True)
-                    zipf.extract(info, extract_to)
+                    extract_root = extract_to.resolve()
+                    file_count = 0
+                    max_files = 50000  # Prevent zip bombs with many files
 
-            log_info(f"Extracted Day One ZIP to {extract_to}", extract_path=str(extract_to))
+                    for info in zipf.infolist():
+                        file_count += 1
+                        if file_count > max_files:
+                            raise ValueError(f"ZIP contains too many files (max: {max_files})")
+
+                        # Skip directories
+                        if info.is_dir():
+                            continue
+
+                        # Validate filename length
+                        if len(info.filename) > MAX_FILENAME_LENGTH:
+                            raise ValueError(f"Filename too long: {info.filename[:50]}...")
+
+                        # Validate filename before constructing path
+                        if info.filename.startswith('/') or '..' in info.filename.split('/'):
+                            raise ValueError(f"ZIP contains unsafe path: {info.filename}")
+
+                        # Check for null bytes in filename
+                        if '\x00' in info.filename:
+                            raise ValueError(f"ZIP contains invalid filename: {info.filename}")
+
+                        dest_path = (extract_to / info.filename).resolve()
+
+                        # Prevent directory traversal / absolute paths
+                        try:
+                            dest_path.relative_to(extract_root)
+                        except ValueError:
+                            raise ValueError(f"ZIP contains unsafe path: {info.filename}")
+
+                        # Disallow symlinks (check external attributes)
+                        if info.external_attr >> 16 & 0o170000 == 0o120000:
+                            raise ValueError(f"ZIP contains symlink: {info.filename}")
+
+                        # Validate file extension
+                        file_ext = os.path.splitext(info.filename.lower())[1]
+                        if file_ext and file_ext not in ALLOWED_EXTENSIONS:
+                            log_warning(
+                                f"Skipping file with unsupported extension: {info.filename}",
+                                filename=info.filename,
+                                extension=file_ext
+                            )
+                            continue
+
+                        # Extract this validated file
+                        dest_path.parent.mkdir(parents=True, exist_ok=True)
+                        zipf.extract(info, extract_to)
+
+                log_info(f"Extracted Day One ZIP to {extract_to}", extract_path=str(extract_to))
 
             # Find all JSON files (Day One exports one JSON per journal)
             json_files = list(extract_to.glob("*.json"))
