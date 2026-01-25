@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+"""
+Journiv Admin CLI entry point.
+
+Usage:
+    ./journiv-admin [command] [options]
+
+Examples:
+    ./journiv-admin auth change-password -e admin@example.com
+    ./journiv-admin import import-data /data/export.zip -u admin@example.com
+"""
+import os
+import sys
+
+# Ensure the current directory is in sys.path so 'app' can be found
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+try:
+    from app.cli.cli import app
+except ImportError as e:
+    print(f"Error: Could not import app.cli. Ensure you are running this from the project root.")
+    print(f"Details: {e}")
+    sys.exit(1)
+
+if __name__ == "__main__":
+    app()

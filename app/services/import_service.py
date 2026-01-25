@@ -194,6 +194,7 @@ class ImportService:
         *,
         total_entries: Optional[int] = None,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        extraction_dir: Optional[Path] = None,
     ) -> ImportResultSummary:
         """
         Import Day One export data.
@@ -203,6 +204,7 @@ class ImportService:
             file_path: Path to Day One ZIP file
             total_entries: Total number of entries (for progress tracking)
             progress_callback: Callback for progress updates
+            extraction_dir: Optional pre-extracted directory path
 
         Returns:
             ImportResultSummary with statistics
@@ -212,15 +214,24 @@ class ImportService:
         """
         log_info(f"Starting Day One import for user {user_id}", user_id=str(user_id), file_path=str(file_path))
 
-        # Create temp directory for extraction
-        temp_dir = Path(settings.import_temp_dir)
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        extract_dir = temp_dir / file_path.stem
+        # Create temp directory for extraction if not provided
+        if not extraction_dir:
+            temp_dir = Path(settings.import_temp_dir)
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            extract_dir = temp_dir / file_path.stem
+        else:
+            if not extraction_dir.exists() or not extraction_dir.is_dir():
+                raise ValueError(f"Extraction directory not found: {extraction_dir}")
+            extract_dir = extraction_dir
         import_timestamp = utc_now()
 
         try:
             # Parse Day One ZIP
-            dayone_journals, media_dir = DayOneParser.parse_zip(file_path, extract_dir)
+            dayone_journals, media_dir = DayOneParser.parse_zip(
+                file_path,
+                extract_dir,
+                is_already_extracted=extraction_dir is not None
+            )
 
             if not dayone_journals:
                 raise ValueError("No journals found in Day One export")

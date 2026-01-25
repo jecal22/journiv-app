@@ -72,6 +72,7 @@ COPY scripts/moods.json scripts/moods.json
 COPY scripts/prompts.json scripts/prompts.json
 COPY scripts/docker-entrypoint.sh scripts/docker-entrypoint.sh
 COPY scripts/migrate_media_storage.py scripts/migrate_media_storage.py
+COPY journiv-admin journiv-admin
 
 # Copy prebuilt Flutter web app
 COPY web/ web/
@@ -83,6 +84,7 @@ COPY LICENSE.md .
 RUN adduser --disabled-password --gecos "" --uid 1000 appuser \
   && mkdir -p /data/media /data/logs \
   && chmod +x scripts/docker-entrypoint.sh \
+  && chmod +x journiv-admin \
   # Fix permissions in case some directories gets copied as 700
   && chmod -R u+rwX,g+rX /app \
   && chmod -R a+rwX /data \
@@ -96,6 +98,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD sh -c 'case "${SERVICE_ROLE:-app}" in \
   celery-worker) celery -A app.core.celery_app inspect ping -d "celery@$(hostname)" --timeout=5 | grep -q "pong" ;; \
   celery-beat) test -f /tmp/celerybeat.pid && kill -0 "$(cat /tmp/celerybeat.pid)" ;; \
+  admin-cli) exit 0 ;; \
   *) curl -f http://localhost:8000/api/v1/health ;; \
   esac'
 

@@ -68,7 +68,7 @@ Give Journiv a quick try with one docker command.
 > [!NOTE]
 > This `docker run` command starts a **minimal** version of Journiv. It lack components needed for various features of Journiv like import/export etc. For a complete docker compose file use [this](https://github.com/journiv/journiv-app/blob/refs/tags/latest/docker-compose.yml).
 
-### Docker Run 
+### Docker Run
 
 ```bash
 docker run -d \
@@ -86,15 +86,14 @@ docker run -d \
 **For complete installation guide see [installation guide](https://journiv.com/docs/installation).**
 
 ## Demo
-Want to just try a [demo](https://demo.almostadatacenter.com)? 
-(Thanks to [JasonFieldz](https://github.com/JasonFieldz) for hosting a demo instance). 
-- Username: demo@test.com 
+Want to just try a [demo](https://demo.almostadatacenter.com)?
+(Thanks to [JasonFieldz](https://github.com/JasonFieldz) for hosting a demo instance).
+- Username: demo@test.com
 - Password: Demo1234
 
 ## Documentation
 
 Read the [docs](https://journiv.com/docs) to learn more about Journiv and configuring it.
-
 
 
 ## Contributing

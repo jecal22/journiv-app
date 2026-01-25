@@ -118,7 +118,6 @@ services:
   app:
     <<: *dev-common
     container_name: journiv-dev-postgres-app
-    entrypoint: ["/app/scripts/docker-entrypoint-dev.sh"]
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
@@ -136,6 +135,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  admin-cli:
+    <<: *dev-common
+    container_name: journiv-dev-admin-cli
+    profiles: ["admin"]
+    command: ["sleep", "infinity"]
+    environment:
+      <<: *base-env
+      SERVICE_ROLE: admin-cli
+      ENVIRONMENT: development
+    # No healthcheck needed for idle container
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+        reservations:
+          memory: 256m
 
 volumes:
   postgres_data:

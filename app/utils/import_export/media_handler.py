@@ -5,8 +5,9 @@ Handles file validation, checksum calculation, and media deduplication.
 """
 import hashlib
 import mimetypes
+import logging
 from pathlib import Path
-from typing import Optional, Tuple, BinaryIO, ClassVar
+from typing import Optional, Tuple, BinaryIO, ClassVar, Union
 
 
 class MediaHandler:
@@ -233,3 +234,64 @@ class MediaHandler:
             filename = stem[:max_stem_length] + suffix
 
         return filename
+
+    @staticmethod
+    def detect_mime(file_path: Path) -> str:
+        """
+        Detect MIME type of a file using libmagic with fallback.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Detected MIME type string
+        """
+        try:
+            import magic
+            return magic.from_file(str(file_path), mime=True)
+        except (ImportError, Exception):
+            # Fallback to mimetypes guess if magic is not available or fails
+            mime_type, _ = mimetypes.guess_type(str(file_path))
+            return mime_type or "application/octet-stream"
+
+    @staticmethod
+    def validate_media(
+        file_path: Path,
+        max_size_mb: int,
+        allowed_types: list[str],
+        allowed_extensions: list[str]
+    ) -> Tuple[bool, str]:
+        """
+        Validate a media file's size, MIME type, and extension.
+
+        Args:
+            file_path: Path to file
+            max_size_mb: Maximum allowed size in MB
+            allowed_types: List of allowed MIME types
+            allowed_extensions: List of allowed file extensions
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        try:
+            # 1. Check file size
+            if not file_path.exists():
+                return False, f"File not found: {file_path}"
+
+            file_size = file_path.stat().st_size
+            if not MediaHandler.validate_file_size(file_size, max_size_mb):
+                return False, f"File size exceeds maximum limit of {max_size_mb}MB"
+
+            # 2. Check MIME type
+            mime_type = MediaHandler.detect_mime(file_path)
+            if not MediaHandler.validate_media_type(mime_type, allowed_types):
+                return False, f"Mime type {mime_type} not allowed"
+
+            # 3. Check file extension
+            file_ext = file_path.suffix.lower()
+            if allowed_extensions and file_ext not in allowed_extensions:
+                return False, f"File extension {file_ext} not allowed"
+
+            return True, "File is valid"
+        except Exception as e:
+            return False, f"Validation failed: {e}"

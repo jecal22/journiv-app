@@ -169,6 +169,26 @@ services:
         reservations:
           memory: 512m
 
+  admin-cli:
+    <<: *app-common
+    container_name: journiv-admin-cli
+    profiles: ["admin"]
+    command: ["sleep", "infinity"]
+    environment:
+      <<: *base-env
+      SERVICE_ROLE: admin-cli
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # No healthcheck needed for idle container
+    healthcheck:
+      disable: true
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+        reservations:
+          memory: 256m
+
 volumes:
   app_data:
   postgres_data:

@@ -5,10 +5,14 @@ Handles creation and extraction of ZIP archives for data exports/imports.
 """
 import zipfile
 import json
+import shutil
+import gc
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 
+from app.core.config import settings
 from app.core.logging_config import log_warning, log_error
+from app.utils.import_export.media_handler import MediaHandler
 
 
 class ZipHandler:
@@ -93,7 +97,8 @@ class ZipHandler:
     def extract_zip(
         zip_path: Path,
         extract_to: Path,
-        max_size_mb: int = 500
+        max_size_mb: int = 500,
+        source_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Extract a ZIP archive safely.
@@ -106,7 +111,7 @@ class ZipHandler:
         Returns:
             Dictionary with extraction info:
             {
-                "data_file": Path to data.json,
+                "data_file": Path to data file,
                 "media_dir": Path to media directory,
                 "total_size": Total extracted size in bytes,
                 "file_count": Number of files extracted
@@ -155,11 +160,21 @@ class ZipHandler:
                 zipf.extractall(extract_to)
 
                 # Find data file and media directory
-                data_file = extract_to / "data.json"
-                media_dir = extract_to / "media"
+                if source_type == "dayone":
+                    # Day One has various JSON files at root, handled by DayOneParser
+                    # We just need to find one to satisfy basic validation here
+                    root_json_files = list(extract_to.glob("*.json"))
+                    data_file = root_json_files[0] if root_json_files else None
+                    media_dir = extract_to # Day One media are in photos/ videos/ at root
+                else:
+                    data_file = extract_to / "data.json"
+                    media_dir = extract_to / "media"
+
+                if not data_file:
+                    raise ValueError(f"ZIP missing JSON data file (source: {source_type or 'journiv'})")
 
                 if not data_file.exists():
-                    raise ValueError("ZIP missing data.json file")
+                    raise ValueError(f"Extracted data file not found: {data_file}")
 
                 return {
                     "data_file": data_file,
@@ -270,6 +285,174 @@ class ZipHandler:
             log_error(e, zip_path=str(zip_path), context="zip_validation_unexpected_error")
 
         return result
+
+    @staticmethod
+    def stream_extract(
+        zip_path: Path,
+        extract_to: Path,
+        media_dest: Optional[Path] = None,
+        max_size_mb: int = 500,
+        validate_media: bool = True,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        source_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Extract ZIP file one entry at a time (memory-efficient).
+
+        Memory usage: O(largest_individual_file), NOT O(total_zip_size)
+
+        This method is identical to extract_zip() but extracts files
+        individually instead of calling extractall(). This prevents
+        memory spikes with large ZIP files.
+
+        Zero-Copy Strategy:
+        If media_dest is provided, media files are written directly to
+        the destination (e.g., /data/media/{user_id}/) instead of temp
+        directory. This eliminates redundant copy operations.
+
+        Args:
+            zip_path: Path to ZIP file
+            extract_to: Directory to extract data.json to (temp directory)
+            media_dest: Optional direct destination for media files (zero-copy)
+            max_size_mb: Maximum allowed uncompressed size
+            validate_media: Validate media types using libmagic (default: True)
+            progress_callback: Optional callback(current, total) for progress
+
+        Returns:
+            Same as extract_zip()
+
+        Raises:
+            ValueError: If ZIP is invalid or too large
+            IOError: If extraction fails
+        """
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zipf:
+                # Same validation as extract_zip()
+                if zipf.testzip() is not None:
+                    raise ValueError("ZIP file is corrupted")
+
+                # Check total size
+                total_size = sum(info.file_size for info in zipf.infolist())
+                max_bytes = max_size_mb * 1024 * 1024
+
+                if total_size > max_bytes:
+                    raise ValueError(
+                        f"ZIP too large: {total_size / (1024*1024):.1f}MB "
+                        f"(max: {max_size_mb}MB)"
+                    )
+
+                # Ensure extract_to exists
+                extract_to.mkdir(parents=True, exist_ok=True)
+                extract_to_resolved = extract_to.resolve()
+
+                # Get file list
+                entries = zipf.infolist()
+                total_files = len(entries)
+
+                # Extract files one by one
+                for idx, info in enumerate(entries, start=1):
+                    # Skip directory entries
+                    if info.is_dir():
+                        continue
+
+                    # Determine if this is a media file
+                    if source_type == "dayone":
+                        is_media_file = any(info.filename.lower().startswith(p) for p in ["photos/", "videos/"])
+                    else:
+                        is_media_file = info.filename.startswith("media/")
+
+                    # Choose destination based on zero-copy strategy
+                    if is_media_file and media_dest:
+                        # Zero-copy: Write directly to final destination
+                        # Extract to media_dest preserving structure
+                        target_dir = media_dest
+
+                        if source_type == "dayone":
+                            # For Day One, media is in photos/ or videos/
+                            # We strip the prefix to get the relative path
+                            filename_lower = info.filename.lower()
+                            if filename_lower.startswith("photos/"):
+                                relative_path = Path(info.filename).relative_to(info.filename[:7]) # handle case sensitivity
+                            elif filename_lower.startswith("videos/"):
+                                relative_path = Path(info.filename).relative_to(info.filename[:7])
+                            else:
+                                relative_path = Path(info.filename)
+                        else:
+                            relative_path = Path(info.filename).relative_to("media")
+
+                        target_path = (media_dest / relative_path).resolve()
+                    else:
+                        # Extract data.json and other files to temp
+                        target_dir = extract_to
+                        target_path = (extract_to / info.filename).resolve()
+
+                    # Path traversal check
+                    try:
+                        target_path.relative_to(target_dir.resolve())
+                    except ValueError:
+                        raise ValueError(f"ZIP contains unsafe path: {info.filename}")
+
+                    # Extract single file to appropriate destination
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    with zipf.open(info) as source:
+                        with open(target_path, 'wb') as dest:
+                            shutil.copyfileobj(source, dest)
+
+                    # Validate media files using centralized MediaHandler
+                    if is_media_file and validate_media:
+                        is_valid, mime_type, error_msg = MediaHandler.validate_media(
+                            target_path,
+                            max_size_mb=settings.max_file_size_mb,
+                            allowed_types=settings.allowed_media_types,
+                            allowed_extensions=settings.allowed_file_extensions
+                        )
+                        if not is_valid:
+                            log_warning(
+                                f"Media validation failed for {info.filename}: {error_msg}",
+                                filename=info.filename,
+                                mime_type=mime_type,
+                                error=error_msg
+                            )
+
+                    # Report progress
+                    if progress_callback:
+                        progress_callback(idx, total_files)
+
+                    # Explicit garbage collection hint for large files
+                    # Python's GC will clean up extracted file buffers
+                    if idx % 100 == 0:  # Every 100 files
+                        gc.collect()
+
+                # Return same structure as extract_zip()
+                if source_type == "dayone":
+                    root_json_files = list(extract_to.glob("*.json"))
+                    data_file = root_json_files[0] if root_json_files else None
+                    media_dir = extract_to
+                else:
+                    data_file = extract_to / "data.json"
+                    media_dir = extract_to / "media"
+
+                if media_dest and media_dest.exists():
+                    media_dir = media_dest
+
+                if not data_file:
+                    raise ValueError(f"ZIP missing JSON data file (source: {source_type or 'journiv'})")
+
+                if not data_file.exists():
+                    raise ValueError(f"Extracted data file not found: {data_file}")
+
+                return {
+                    "data_file": data_file,
+                    "media_dir": media_dir if media_dir and media_dir.exists() else None,
+                    "total_size": total_size,
+                    "file_count": len(entries),
+                }
+
+        except zipfile.BadZipFile as e:
+            raise ValueError(f"Invalid ZIP file: {e}") from e
+        except Exception as e:
+            log_error(e, zip_path=str(zip_path), extract_to=str(extract_to))
+            raise IOError(f"Extraction failed: {e}") from e
 
     @staticmethod
     def list_zip_contents(zip_path: Path) -> List[str]:
