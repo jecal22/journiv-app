@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     oidc_auto_provision: bool = True
     oidc_disable_ssl_verify: bool = False  # Only for local development with self-signed certs
     oidc_allow_insecure_prod: bool = False  # Allow OIDC over HTTP (INSECURE). Recommended only for advanced users in isolated homelabs. Default: false
+    oidc_require_verified_email: bool = True # Require OIDC to indicate email has been verified
 
     # Redis Configuration (for OIDC state/cache and Celery)
     redis_url: Optional[str] = None  # e.g., "redis://localhost:6379/0"
